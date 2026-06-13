@@ -25,11 +25,11 @@ const NAV: NavItem[] = [
   { href: "/crm", label: "CRM / Kunden", icon: "☻", roles: ["SALES", "MARKETING"] },
   { href: "/leads", label: "Leads", icon: "✦", roles: ["SALES", "MARKETING"] },
   { href: "/orders", label: "Bestellungen", icon: "▤", roles: ["SALES"] },
+  { href: "/products", label: "Produkte", icon: "▣", roles: ["WAREHOUSE", "SALES"] },
   { href: "/invoices", label: "Rechnungen", icon: "₪", roles: ["ACCOUNTING"] },
   { href: "/billing-archive", label: "Rechnungsarchiv", icon: "🗄", roles: ["ACCOUNTING"] },
   { href: "/settings", label: "Einstellungen", icon: "⚙", roles: [] }, // nur ADMIN/MEMBER
   // Folgen mit dem jeweiligen Feature:
-  // { href: "/products", label: "Produkte", ... }
   // { href: "/quotes", label: "Angebote", ... }
   // { href: "/tasks", label: "Aufgaben", ... }
   // { href: "/campaigns", label: "Kampagnen", ... }

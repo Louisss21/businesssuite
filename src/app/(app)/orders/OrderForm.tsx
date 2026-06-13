@@ -5,9 +5,24 @@ import { useRouter } from "next/navigation";
 import { Button, Card, Field, Input, Select } from "@/components/ui";
 
 type CustomerOption = { id: string; name: string };
-type Line = { productName: string; quantity: string; unitPrice: string; taxRate: string };
+export type ProductOption = {
+  id: string;
+  sku: string;
+  name: string;
+  priceNet: number;
+  taxRate: number;
+  unit: string;
+};
+type Line = {
+  productId: string;
+  productName: string;
+  quantity: string;
+  unitPrice: string;
+  taxRate: string;
+};
 
 const emptyLine = (taxRate: number): Line => ({
+  productId: "",
   productName: "",
   quantity: "1",
   unitPrice: "0",
@@ -16,9 +31,11 @@ const emptyLine = (taxRate: number): Line => ({
 
 export function OrderForm({
   customers,
+  products = [],
   defaultTaxRate,
 }: {
   customers: CustomerOption[];
+  products?: ProductOption[];
   defaultTaxRate: number;
 }) {
   const router = useRouter();
@@ -30,6 +47,23 @@ export function OrderForm({
 
   const update = (i: number, key: keyof Line, value: string) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, [key]: value } : l)));
+
+  // Produktauswahl: füllt Name/Preis/MwSt automatisch vor
+  const selectProduct = (i: number, productId: string) =>
+    setLines((ls) =>
+      ls.map((l, idx) => {
+        if (idx !== i) return l;
+        const p = products.find((x) => x.id === productId);
+        if (!p) return { ...l, productId: "" };
+        return {
+          ...l,
+          productId,
+          productName: p.name,
+          unitPrice: String(p.priceNet),
+          taxRate: String(p.taxRate),
+        };
+      }),
+    );
 
   const net = lines.reduce(
     (s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0),
@@ -66,7 +100,7 @@ export function OrderForm({
   return (
     <Card className="p-6">
       <form onSubmit={submit} className="space-y-5">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Kunde">
             <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
               <option value="">— Kunde wählen —</option>
@@ -84,48 +118,66 @@ export function OrderForm({
 
         <div>
           <div className="mb-2 text-sm font-semibold text-slate-900">Positionen</div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {lines.map((l, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2">
-                <Input
-                  className="col-span-5"
-                  placeholder="Produktname"
-                  value={l.productName}
-                  onChange={(e) => update(i, "productName", e.target.value)}
-                  required
-                />
-                <Input
-                  className="col-span-2"
-                  type="number"
-                  step="0.001"
-                  placeholder="Menge"
-                  value={l.quantity}
-                  onChange={(e) => update(i, "quantity", e.target.value)}
-                />
-                <Input
-                  className="col-span-2"
-                  type="number"
-                  step="0.01"
-                  placeholder="Preis"
-                  value={l.unitPrice}
-                  onChange={(e) => update(i, "unitPrice", e.target.value)}
-                />
-                <Input
-                  className="col-span-2"
-                  type="number"
-                  step="0.01"
-                  placeholder="MwSt %"
-                  value={l.taxRate}
-                  onChange={(e) => update(i, "taxRate", e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="col-span-1 text-slate-400 hover:text-red-600"
-                  onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}
-                  disabled={lines.length === 1}
-                >
-                  ✕
-                </button>
+              <div key={i} className="rounded-lg border border-slate-200 p-3">
+                {products.length > 0 && (
+                  <div className="mb-2">
+                    <Select
+                      value={l.productId}
+                      onChange={(e) => selectProduct(i, e.target.value)}
+                    >
+                      <option value="">— Produkt wählen (oder Freitext unten) —</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.sku} · {p.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
+                  <Input
+                    className="col-span-2 sm:col-span-5"
+                    placeholder="Produktname"
+                    value={l.productName}
+                    onChange={(e) => update(i, "productName", e.target.value)}
+                    required
+                  />
+                  <Input
+                    className="col-span-1 sm:col-span-2"
+                    type="number"
+                    step="0.001"
+                    placeholder="Menge"
+                    value={l.quantity}
+                    onChange={(e) => update(i, "quantity", e.target.value)}
+                  />
+                  <Input
+                    className="col-span-1 sm:col-span-2"
+                    type="number"
+                    step="0.01"
+                    placeholder="Preis"
+                    value={l.unitPrice}
+                    onChange={(e) => update(i, "unitPrice", e.target.value)}
+                  />
+                  <Input
+                    className="col-span-1 sm:col-span-2"
+                    type="number"
+                    step="0.01"
+                    placeholder="MwSt %"
+                    value={l.taxRate}
+                    onChange={(e) => update(i, "taxRate", e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="col-span-1 text-slate-400 hover:text-red-600 sm:col-span-1"
+                    onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}
+                    disabled={lines.length === 1}
+                    aria-label="Position entfernen"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             ))}
           </div>

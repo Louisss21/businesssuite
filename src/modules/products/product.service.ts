@@ -1,0 +1,106 @@
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { AppError, notFound } from "@/lib/http";
+import { productCreateSchema, productUpdateSchema } from "./product.schema";
+
+async function resolveCategoryId(name?: string | null): Promise<string | null> {
+  const n = (name ?? "").trim();
+  if (!n) return null;
+  const existing = await prisma.productCategory.findFirst({ where: { name: n } });
+  if (existing) return existing.id;
+  const created = await prisma.productCategory.create({ data: { name: n } });
+  return created.id;
+}
+
+function mapUniqueError(e: unknown): never {
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+    throw new AppError("SKU bereits vergeben.", 409);
+  }
+  throw e;
+}
+
+export const productService = {
+  list(query?: { search?: string; active?: boolean }) {
+    return prisma.product.findMany({
+      where: {
+        active: query?.active,
+        OR: query?.search
+          ? [
+              { name: { contains: query.search, mode: "insensitive" } },
+              { sku: { contains: query.search, mode: "insensitive" } },
+            ]
+          : undefined,
+      },
+      orderBy: { createdAt: "desc" },
+      include: { category: true },
+    });
+  },
+
+  /** Schlanke Liste für Produkt-Dropdown in Bestellungen. */
+  listActiveSimple() {
+    return prisma.product.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, sku: true, name: true, priceNet: true, taxRate: true, unit: true },
+    });
+  },
+
+  async getById(id: string) {
+    const p = await prisma.product.findUnique({ where: { id }, include: { category: true } });
+    if (!p) throw notFound("Produkt nicht gefunden");
+    return p;
+  },
+
+  async create(input: unknown) {
+    const data = productCreateSchema.parse(input);
+    const categoryId = await resolveCategoryId(data.category);
+    try {
+      return await prisma.product.create({
+        data: {
+          sku: data.sku,
+          name: data.name,
+          description: data.description || null,
+          categoryId,
+          priceNet: data.priceNet,
+          taxRate: data.taxRate,
+          stockQty: data.stockQty,
+          minStock: data.minStock,
+          unit: data.unit,
+          active: data.active,
+        },
+      });
+    } catch (e) {
+      mapUniqueError(e);
+    }
+  },
+
+  async update(id: string, input: unknown) {
+    await this.getById(id);
+    const data = productUpdateSchema.parse(input);
+    const categoryId =
+      data.category !== undefined ? await resolveCategoryId(data.category) : undefined;
+    try {
+      return await prisma.product.update({
+        where: { id },
+        data: {
+          sku: data.sku,
+          name: data.name,
+          description: data.description ?? undefined,
+          categoryId,
+          priceNet: data.priceNet,
+          taxRate: data.taxRate,
+          stockQty: data.stockQty,
+          minStock: data.minStock,
+          unit: data.unit,
+          active: data.active,
+        },
+      });
+    } catch (e) {
+      mapUniqueError(e);
+    }
+  },
+
+  delete(id: string) {
+    return prisma.product.delete({ where: { id } });
+  },
+};

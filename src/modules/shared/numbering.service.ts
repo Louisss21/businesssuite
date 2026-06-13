@@ -25,7 +25,7 @@ export function applyNumberFormat(
 /** Innerhalb einer Transaktion die nächste Nummer ziehen. */
 export async function nextNumber(
   tx: Prisma.TransactionClient,
-  scope: "invoice" | "order",
+  scope: "invoice" | "order" | "quote",
   year: number,
   format: string,
 ): Promise<string> {

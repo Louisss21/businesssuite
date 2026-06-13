@@ -1,0 +1,582 @@
+// ============================================================================
+//  Business Suite – Prisma Schema
+//  Monolithisches MVP, bewusst ERP-/Shop-erweiterbar modelliert.
+//  Geldbeträge: Decimal(12,2). Steuersätze: Decimal(5,2) (z.B. 19.00).
+//  DATEV-Ready: Netto / Steuer / Brutto getrennt, eindeutige Belegnummern,
+//  vollständige Kundenstammdaten, Periodenzuordnung pro Rechnung.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+//  Enums
+// ----------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  SALES
+  MARKETING
+  WAREHOUSE
+  ACCOUNTING
+  MEMBER // Legacy/Fallback – Vollzugriff wie bisher
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  EMAIL
+  MEETING
+  VISIT
+}
+
+enum CampaignType {
+  POST
+  EMAIL
+  PHONE
+  MIXED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum CustomerType {
+  COMPANY // Firmenkunde
+  PRIVATE // Privatkunde
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  LOST
+  WON
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  OVERDUE
+}
+
+// ----------------------------------------------------------------------------
+//  Auth / Users
+// ----------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String   @default("") // leer = noch nicht gesetzt (eingeladen)
+  role         UserRole @default(MEMBER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ----------------------------------------------------------------------------
+//  CRM
+// ----------------------------------------------------------------------------
+
+model Customer {
+  id   String       @id @default(cuid())
+  type CustomerType @default(COMPANY)
+
+  // Firmenkunde
+  companyName String?
+
+  // Privatkunde / Hauptkontakt
+  firstName String?
+  lastName  String?
+
+  email String?
+  phone String?
+
+  // Adresse (vollständig für Rechnung / DATEV)
+  street     String?
+  postalCode String?
+  city       String?
+  country    String? @default("DE")
+
+  // Abweichende Lieferadresse
+  shippingStreet String?
+  shippingZip    String?
+  shippingCity   String?
+
+  // Steuerliche Daten
+  vatId     String? // USt-IdNr.
+  taxNumber String? // Steuernummer
+
+  notes String?
+
+  // CRM-Klassifizierung & Herkunft (für Marketing/Kampagnen)
+  classification  String? // A-Kunde | B-Kunde | C-Kunde | VIP
+  source          String? // Organisch | Kampagne | Empfehlung | Messe | Außendienst | Online-Shop
+  newsletterOptIn Boolean @default(false)
+
+  contacts   ContactPerson[]
+  leads      Lead[]
+  orders     Order[]
+  invoices   Invoice[]
+  quotes     Quote[]
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([classification])
+  @@map("customers")
+}
+
+model ContactPerson {
+  id         String  @id @default(cuid())
+  customerId String
+  firstName  String
+  lastName   String
+  email      String?
+  phone      String?
+  position   String?
+  isPrimary  Boolean @default(false)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("contact_persons")
+}
+
+model Lead {
+  id     String     @id @default(cuid())
+  title  String
+  status LeadStatus @default(NEW)
+  notes  String?
+
+  // Kontaktdaten des Leads
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
+  company   String?
+  position  String?
+
+  // Qualifizierung
+  score          Int      @default(0) // 0..100
+  tags           String[] @default([])
+  source         String?
+  assignedUserId String?
+  lostReason     String?
+
+  // Optionaler Bezug zu einem bestehenden Kunden
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([customerId])
+  @@map("leads")
+}
+
+// ----------------------------------------------------------------------------
+//  Orders (manuell)
+// ----------------------------------------------------------------------------
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique // z.B. ORD-2026-0001
+  customerId  String
+  status      OrderStatus @default(DRAFT)
+  notes       String?
+
+  // Summen (denormalisiert für schnelle Listen/Reports)
+  netTotal   Decimal @default(0) @db.Decimal(12, 2)
+  taxTotal   Decimal @default(0) @db.Decimal(12, 2)
+  grossTotal Decimal @default(0) @db.Decimal(12, 2)
+
+  customer Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items    OrderItem[]
+  invoice  Invoice? // genau eine Rechnung je Bestellung
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String @id @default(cuid())
+  orderId     String
+  productName String // frei, noch kein Produktkatalog
+  quantity    Decimal @default(1) @db.Decimal(12, 3)
+  unitPrice   Decimal @db.Decimal(12, 2) // Nettopreis pro Einheit
+  taxRate     Decimal @default(19) @db.Decimal(5, 2)
+
+  // Berechnete Beträge (getrennt für DATEV)
+  netAmount   Decimal @db.Decimal(12, 2)
+  taxAmount   Decimal @db.Decimal(12, 2)
+  grossAmount Decimal @db.Decimal(12, 2)
+
+  sortOrder Int @default(0)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ----------------------------------------------------------------------------
+//  Invoices
+// ----------------------------------------------------------------------------
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique // z.B. INV-2026-0001
+  status        InvoiceStatus @default(OPEN)
+
+  customerId String
+  orderId    String? @unique // 1:1 zu Order (optional, falls manuell)
+
+  issueDate DateTime  @default(now())
+  dueDate   DateTime
+  paidAt    DateTime?
+
+  // Summen (getrennt für DATEV / Reporting)
+  netTotal   Decimal @default(0) @db.Decimal(12, 2)
+  taxTotal   Decimal @default(0) @db.Decimal(12, 2)
+  grossTotal Decimal @default(0) @db.Decimal(12, 2)
+
+  // Buchhaltungsperiode (Monat/Quartal/Jahr) – Pflichtzuordnung
+  accountingPeriodId String
+
+  // Storno-Verknüpfung (Feature 10)
+  isCancellation    Boolean @default(false) // true = Stornorechnung (negative Beträge)
+  originalInvoiceId String?
+
+  customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  order            Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  accountingPeriod AccountingPeriod @relation(fields: [accountingPeriodId], references: [id], onDelete: Restrict)
+  items            InvoiceItem[]
+  dunnings         Dunning[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([accountingPeriodId])
+  @@index([issueDate])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  productName String
+  quantity    Decimal @default(1) @db.Decimal(12, 3)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  taxRate     Decimal @default(19) @db.Decimal(5, 2)
+
+  netAmount   Decimal @db.Decimal(12, 2)
+  taxAmount   Decimal @db.Decimal(12, 2)
+  grossAmount Decimal @db.Decimal(12, 2)
+
+  sortOrder Int @default(0)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+// ----------------------------------------------------------------------------
+//  Buchhaltungs-Periode (logische Ordnerstruktur Jahr/Quartal/Monat)
+// ----------------------------------------------------------------------------
+
+model AccountingPeriod {
+  id      String @id @default(cuid())
+  year    Int
+  month   Int // 1..12
+  quarter Int // 1..4 (abgeleitet aus month)
+  label   String // z.B. "01_Januar 2026"
+
+  invoices Invoice[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([year, month])
+  @@index([year])
+  @@index([year, quarter])
+  @@map("accounting_periods")
+}
+
+// ----------------------------------------------------------------------------
+//  Belegnummern-Sequenzen (pro Scope + Jahr eindeutig fortlaufend)
+// ----------------------------------------------------------------------------
+
+model NumberSequence {
+  id    String @id @default(cuid())
+  scope String // "invoice" | "order"
+  year  Int
+  value Int    @default(0)
+
+  @@unique([scope, year])
+  @@map("number_sequences")
+}
+
+// ----------------------------------------------------------------------------
+//  Stammdaten / Settings (Singleton)
+// ----------------------------------------------------------------------------
+
+model CompanySettings {
+  id String @id @default("singleton")
+
+  companyName String  @default("")
+  street      String  @default("")
+  postalCode  String  @default("")
+  city        String  @default("")
+  country     String  @default("DE")
+  email       String  @default("")
+  phone       String  @default("")
+  taxNumber   String  @default("")
+  vatId       String  @default("")
+
+  // Bankverbindung (für Rechnungs-PDF)
+  bankName String @default("")
+  iban     String @default("")
+  bic      String @default("")
+
+  // Rechnungs-Einstellungen
+  invoiceNumberFormat    String  @default("INV-{YYYY}-{SEQ:4}")
+  orderNumberFormat      String  @default("ORD-{YYYY}-{SEQ:4}")
+  quoteNumberFormat      String  @default("QUO-{YYYY}-{SEQ:4}")
+  defaultPaymentTermDays Int     @default(14)
+  defaultTaxRate         Decimal @default(19) @db.Decimal(5, 2)
+  invoiceFooter          String  @default("Vielen Dank für Ihren Auftrag.")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("company_settings")
+}
+
+// ----------------------------------------------------------------------------
+//  Produkte (Stammdaten) – Feature 3
+// ----------------------------------------------------------------------------
+
+model ProductCategory {
+  id       String    @id @default(cuid())
+  name     String
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id          String           @id @default(cuid())
+  sku         String           @unique
+  name        String
+  description String?
+  categoryId  String?
+  category    ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  priceNet    Float
+  taxRate     Float            @default(19)
+  stockQty    Int              @default(0)
+  minStock    Int              @default(0)
+  unit        String           @default("Stück")
+  active      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([active])
+  @@map("products")
+}
+
+// ----------------------------------------------------------------------------
+//  Angebote – Feature 5
+// ----------------------------------------------------------------------------
+
+model Quote {
+  id         String      @id @default(cuid())
+  number     String      @unique
+  customerId String
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status     QuoteStatus @default(DRAFT)
+  validUntil DateTime?
+  notes      String?
+
+  // Summen (denormalisiert)
+  netTotal   Float @default(0)
+  taxTotal   Float @default(0)
+  grossTotal Float @default(0)
+
+  items     QuoteItem[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId   String?
+  name        String
+  qty         Float   @default(1)
+  unitPrice   Float
+  discountPct Float   @default(0)
+  taxRate     Float   @default(19)
+  sortOrder   Int     @default(0)
+
+  @@index([quoteId])
+  @@map("quote_items")
+}
+
+// ----------------------------------------------------------------------------
+//  Aufgaben / Wiedervorlagen – Feature 7
+// ----------------------------------------------------------------------------
+
+model Task {
+  id                String     @id @default(cuid())
+  title             String
+  description       String?
+  assignedToId      String?
+  relatedCustomerId String?
+  relatedLeadId     String?
+  dueAt             DateTime?
+  status            TaskStatus @default(OPEN)
+  priority          Priority   @default(MEDIUM)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([status])
+  @@index([dueAt])
+  @@index([relatedCustomerId])
+  @@index([relatedLeadId])
+  @@map("tasks")
+}
+
+// ----------------------------------------------------------------------------
+//  Aktivitätenhistorie – Feature 8
+// ----------------------------------------------------------------------------
+
+model Activity {
+  id         String       @id @default(cuid())
+  type       ActivityType @default(NOTE)
+  customerId String?
+  customer   Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  leadId     String?
+  lead       Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  subject    String
+  body       String?
+  createdAt  DateTime     @default(now())
+
+  @@index([customerId])
+  @@index([leadId])
+  @@map("activities")
+}
+
+// ----------------------------------------------------------------------------
+//  Kampagnen – Feature 9
+// ----------------------------------------------------------------------------
+
+model Campaign {
+  id         String              @id @default(cuid())
+  name       String
+  type       CampaignType        @default(POST)
+  status     CampaignStatus      @default(DRAFT)
+  startDate  DateTime?
+  endDate    DateTime?
+  budget     Float?
+  notes      String?
+  recipients CampaignRecipient[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([status])
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customerId  String?
+  leadId      String?
+  sentAt      DateTime?
+  respondedAt DateTime?
+  converted   Boolean   @default(false)
+
+  @@index([campaignId])
+  @@map("campaign_recipients")
+}
+
+// ----------------------------------------------------------------------------
+//  Mahnwesen – Feature 10
+// ----------------------------------------------------------------------------
+
+model Dunning {
+  id        String    @id @default(cuid())
+  invoiceId String
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  level     Int // 1, 2, 3
+  sentAt    DateTime?
+  dueDate   DateTime
+  fee       Float     @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([invoiceId])
+  @@map("dunnings")
+}

@@ -106,7 +106,19 @@ export const orderService = {
     });
   },
 
-  delete(id: string) {
+  async delete(id: string) {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { invoice: { select: { id: true } } },
+    });
+    if (!order) throw notFound("Bestellung nicht gefunden");
+    if (order.invoice) {
+      throw new AppError(
+        "Bestellung kann nicht gelöscht werden – es existiert eine Rechnung. Bitte zuerst die Rechnung löschen.",
+        409,
+      );
+    }
+    // OrderItems werden per Cascade mitgelöscht
     return prisma.order.delete({ where: { id } });
   },
 };

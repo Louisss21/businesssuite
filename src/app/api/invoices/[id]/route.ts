@@ -23,3 +23,13 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return fail(e);
   }
 }
+
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  try {
+    await requireUser();
+    await invoiceService.delete(params.id);
+    return ok({ success: true });
+  } catch (e) {
+    return fail(e);
+  }
+}

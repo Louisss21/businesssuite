@@ -4,6 +4,7 @@ import { formatEUR } from "@/lib/money";
 import { invoiceService } from "@/modules/invoices/invoice.service";
 import { displayName } from "@/modules/crm/customer.service";
 import { InvoiceStatusSelect } from "./InvoiceStatusSelect";
+import { DeleteButton } from "@/components/DeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function InvoicesPage({
             <Th>Periode</Th>
             <Th className="text-right">Brutto</Th>
             <Th>Status</Th>
+            <Th className="text-right">Aktionen</Th>
           </tr>
         </thead>
         <tbody>
@@ -61,6 +63,22 @@ export default async function InvoicesPage({
               <Td className="text-right">{formatEUR(inv.grossTotal)}</Td>
               <Td>
                 <InvoiceStatusSelect id={inv.id} status={inv.status} />
+              </Td>
+              <Td className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  <Link
+                    href={`/invoices/${inv.id}`}
+                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"
+                    title="Ansehen"
+                  >
+                    ✎
+                  </Link>
+                  <DeleteButton
+                    url={`/api/invoices/${inv.id}`}
+                    confirmText={`Rechnung ${inv.invoiceNumber} wirklich löschen? (Hinweis: Rechnungen sollten i. d. R. storniert statt gelöscht werden.)`}
+                    iconOnly
+                  />
+                </div>
               </Td>
             </tr>
           ))}

@@ -127,4 +127,10 @@ export const invoiceService = {
       include: fullInclude,
     });
   },
+
+  async delete(id: string) {
+    await this.getById(id); // 404 wenn nicht vorhanden
+    // InvoiceItems & Dunnings werden per Cascade mitgelöscht
+    return prisma.invoice.delete({ where: { id } });
+  },
 };

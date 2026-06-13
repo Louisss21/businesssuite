@@ -1,5 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { notFound } from "@/lib/http";
+import { AppError, notFound } from "@/lib/http";
 import {
   contactSchema,
   customerCreateSchema,
@@ -52,8 +53,18 @@ export const customerService = {
     return prisma.customer.update({ where: { id }, data });
   },
 
-  delete(id: string) {
-    return prisma.customer.delete({ where: { id } });
+  async delete(id: string) {
+    try {
+      return await prisma.customer.delete({ where: { id } });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") {
+        throw new AppError(
+          "Kunde kann nicht gelöscht werden – es existieren noch Bestellungen oder Rechnungen. Bitte diese zuerst löschen.",
+          409,
+        );
+      }
+      throw e;
+    }
   },
 
   addContact(customerId: string, input: ContactInput) {

@@ -20,7 +20,11 @@ export function middleware(req: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+
+  // aktuellen Pfad als Header durchreichen -> serverseitiger Rollen-Guard im Layout
+  const headers = new Headers(req.headers);
+  headers.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {

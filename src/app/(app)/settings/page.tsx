@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/ui";
 import { settingsService } from "@/modules/settings/settings.service";
 import { SettingsForm } from "./SettingsForm";
+import { SettingsTabs } from "./SettingsTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Einstellungen" subtitle="Stammdaten & Systemkonfiguration" />
+      <SettingsTabs active="general" />
       <SettingsForm initial={initial} />
     </>
   );

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { PageHeader, Table, Th, Td, Badge, Empty, LinkButton } from "@/components/ui";
 import { formatEUR } from "@/lib/money";
 import { customerService, displayName } from "@/modules/crm/customer.service";
+import { activityService } from "@/modules/activities/activity.service";
 import { CustomerInfoCard } from "./CustomerInfoCard";
 import { TaskQuickAdd } from "@/components/TaskQuickAdd";
+import { ActivityTimeline } from "@/components/ActivityTimeline";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,8 @@ export default async function CustomerDetailPage({
 }) {
   const customer = await customerService.getById(params.id).catch(() => null);
   if (!customer) notFound();
+
+  const activities = await activityService.list({ customerId: customer.id });
 
   return (
     <>
@@ -116,6 +120,19 @@ export default async function CustomerDetailPage({
               </tbody>
             </Table>
             {customer.invoices.length === 0 && <Empty>Keine Rechnungen.</Empty>}
+          </section>
+
+          <section>
+            <ActivityTimeline
+              customerId={customer.id}
+              activities={activities.map((a) => ({
+                id: a.id,
+                type: a.type,
+                subject: a.subject,
+                body: a.body,
+                createdAt: a.createdAt.toISOString(),
+              }))}
+            />
           </section>
         </div>
       </div>

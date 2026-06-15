@@ -78,7 +78,7 @@ export const quoteService = {
     // Fix 2.1: "gültig bis" darf bei neuem Angebot nicht in der Vergangenheit liegen
     const vu = normDate(data.validUntil);
     if (vu && vu < startOfToday()) {
-      throw new AppError("„Gültig bis" darf nicht in der Vergangenheit liegen.");
+      throw new AppError("'Gültig bis' darf nicht in der Vergangenheit liegen.");
     }
     const settings = await settingsService.get();
     const year = new Date().getFullYear();

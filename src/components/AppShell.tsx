@@ -27,6 +27,8 @@ const NAV: NavItem[] = [
   { href: "/quotes", label: "Angebote", icon: "✎", roles: ["SALES"] },
   { href: "/orders", label: "Bestellungen", icon: "▤", roles: ["SALES"] },
   { href: "/products", label: "Produkte", icon: "▣", roles: ["WAREHOUSE", "SALES"] },
+  { href: "/production", label: "Produktion", icon: "⚒", roles: ["WAREHOUSE"] },
+  { href: "/inventory", label: "Lager", icon: "▦", roles: ["WAREHOUSE"] },
   { href: "/invoices", label: "Rechnungen", icon: "₪", roles: ["ACCOUNTING"] },
   { href: "/billing-archive", label: "Rechnungsarchiv", icon: "🗄", roles: ["ACCOUNTING"] },
   { href: "/tasks", label: "Aufgaben", icon: "✓", roles: ["SALES", "MARKETING"] },

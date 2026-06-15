@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedProduction } from "./seed-production";
 
 const prisma = new PrismaClient();
 
@@ -48,6 +49,9 @@ async function main() {
       vatId: "DE987654321",
     },
   });
+
+  // Produktion & Lager (Sustable ONE)
+  await seedProduction(prisma);
 
   console.log("Seed fertig:");
   console.log(`  Login: ${email} / ${password}`);

@@ -79,6 +79,9 @@ export function SettingsForm({ initial }: { initial: Settings }) {
           <Field label="BIC">
             <Input name="bic" defaultValue={v("bic")} />
           </Field>
+          <Field label="Einkaufs-E-Mail (Nachbestellungen)">
+            <Input name="purchasingEmail" type="email" defaultValue={v("purchasingEmail")} />
+          </Field>
         </div>
       </Card>
 

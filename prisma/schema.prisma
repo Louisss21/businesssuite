@@ -396,6 +396,9 @@ model CompanySettings {
   iban     String @default("")
   bic      String @default("")
 
+  // Zentrale Einkaufs-/Bestell-E-Mail (Fallback für Nachbestell-Aufforderungen)
+  purchasingEmail String @default("")
+
   // Rechnungs-Einstellungen
   invoiceNumberFormat    String  @default("INV-{YYYY}-{SEQ:4}")
   orderNumberFormat      String  @default("ORD-{YYYY}-{SEQ:4}")
@@ -436,6 +439,8 @@ model Product {
   active      Boolean          @default(true)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+
+  tableModels TableModel[] // Fertigerzeugnis-Verknüpfung (Produktion)
 
   @@index([categoryId])
   @@index([active])
@@ -580,4 +585,136 @@ model Dunning {
 
   @@index([invoiceId])
   @@map("dunnings")
+}
+
+// ============================================================================
+//  Produktion & Lager (Sustable-Fertigung)
+// ============================================================================
+
+enum ProductionStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MovementType {
+  IN
+  OUT
+}
+
+model Supplier {
+  id         String      @id @default(cuid())
+  name       String
+  email      String?
+  phone      String?
+  components  Component[]
+  createdAt  DateTime    @default(now())
+
+  @@map("suppliers")
+}
+
+model Component {
+  id                     String          @id @default(cuid())
+  sku                    String          @unique
+  name                   String
+  description            String?
+  unit                   String          @default("Stück")
+  stockQty               Int             @default(0)
+  minStock               Int             @default(10)
+  reorderEmail           String?
+  lastReorderNotifiedAt  DateTime?
+  supplierId             String?
+  supplier               Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  bomItems               BomItem[]
+  movements              StockMovement[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@map("components")
+}
+
+model TableModel {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  active      Boolean          @default(true)
+  productId   String? // verkaufbares Fertigerzeugnis
+  product     Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  steps       ProductionStep[]
+  orders      ProductionOrder[]
+  createdAt   DateTime         @default(now())
+
+  @@map("table_models")
+}
+
+model ProductionStep {
+  id            String     @id @default(cuid())
+  tableModelId  String
+  tableModel    TableModel @relation(fields: [tableModelId], references: [id], onDelete: Cascade)
+  order         Int
+  title         String
+  instruction   String
+  videoUrl      String?
+  pdfUrl        String?
+  requiresInput Boolean    @default(false)
+  inputLabel    String?
+  bomItems      BomItem[]
+
+  @@index([tableModelId])
+  @@map("production_steps")
+}
+
+model BomItem {
+  id          String         @id @default(cuid())
+  stepId      String
+  step        ProductionStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  componentId String
+  component   Component      @relation(fields: [componentId], references: [id], onDelete: Restrict)
+  quantity    Int
+
+  @@index([stepId])
+  @@index([componentId])
+  @@map("bom_items")
+}
+
+model ProductionOrder {
+  id           String              @id @default(cuid())
+  tableModelId String
+  tableModel   TableModel          @relation(fields: [tableModelId], references: [id], onDelete: Restrict)
+  status       ProductionStatus    @default(IN_PROGRESS)
+  serialNumber String?             @unique
+  currentStep  Int                 @default(1)
+  startedById  String?
+  startedAt    DateTime            @default(now())
+  completedAt  DateTime?
+  stepLogs     ProductionStepLog[]
+
+  @@index([status])
+  @@map("production_orders")
+}
+
+model ProductionStepLog {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  stepOrder         Int
+  completedAt       DateTime        @default(now())
+  inputValue        String?
+
+  @@index([productionOrderId])
+  @@map("production_step_logs")
+}
+
+model StockMovement {
+  id          String       @id @default(cuid())
+  componentId String
+  component   Component    @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  quantity    Int
+  direction   MovementType
+  reason      String
+  referenceId String?
+  createdAt   DateTime     @default(now())
+
+  @@index([componentId])
+  @@map("stock_movements")
 }

@@ -10,6 +10,8 @@ const RULES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/quotes", roles: ["SALES"] },
   { prefix: "/orders", roles: ["SALES"] },
   { prefix: "/products", roles: ["WAREHOUSE", "SALES"] },
+  { prefix: "/production", roles: ["WAREHOUSE"] },
+  { prefix: "/inventory", roles: ["WAREHOUSE"] },
   { prefix: "/invoices", roles: ["ACCOUNTING"] },
   { prefix: "/billing-archive", roles: ["ACCOUNTING"] },
   { prefix: "/tasks", roles: ["SALES", "MARKETING"] },

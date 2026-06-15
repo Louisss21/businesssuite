@@ -19,6 +19,7 @@ export default async function SettingsPage() {
     bankName: s.bankName,
     iban: s.iban,
     bic: s.bic,
+    purchasingEmail: s.purchasingEmail,
     invoiceNumberFormat: s.invoiceNumberFormat,
     orderNumberFormat: s.orderNumberFormat,
     quoteNumberFormat: s.quoteNumberFormat,

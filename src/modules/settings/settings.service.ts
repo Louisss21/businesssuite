@@ -16,6 +16,7 @@ export const settingsSchema = z.object({
   bankName: z.string().trim().default(""),
   iban: z.string().trim().default(""),
   bic: z.string().trim().default(""),
+  purchasingEmail: z.string().email().or(z.literal("")).default(""),
   invoiceNumberFormat: z.string().trim().default("INV-{YYYY}-{SEQ:4}"),
   orderNumberFormat: z.string().trim().default("ORD-{YYYY}-{SEQ:4}"),
   quoteNumberFormat: z.string().trim().default("QUO-{YYYY}-{SEQ:4}"),

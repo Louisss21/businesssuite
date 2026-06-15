@@ -21,6 +21,7 @@ export function InvoiceStatusSelect({ id, status }: { id: string; status: string
       <option value="OPEN">OPEN</option>
       <option value="PAID">PAID</option>
       <option value="OVERDUE">OVERDUE</option>
+      <option value="CANCELLED">CANCELLED</option>
     </Select>
   );
 }

@@ -13,14 +13,16 @@ export default async function InvoicesPage({
 }: {
   searchParams: { status?: string };
 }) {
+  // Überfällige Rechnungen automatisch markieren (kein Cron -> lazy beim Aufruf)
+  await invoiceService.markOverdue();
   const invoices = await invoiceService.list({ status: searchParams.status });
 
   return (
     <>
       <PageHeader title="Rechnungen" subtitle="Alle Rechnungen" />
 
-      <div className="mb-4 flex gap-2 text-sm">
-        {["", "OPEN", "PAID", "OVERDUE"].map((s) => (
+      <div className="mb-4 flex flex-wrap gap-2 text-sm">
+        {["", "OPEN", "PAID", "OVERDUE", "CANCELLED"].map((s) => (
           <Link
             key={s || "all"}
             href={s ? `/invoices?status=${s}` : "/invoices"}

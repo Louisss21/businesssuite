@@ -6,6 +6,7 @@ import { invoiceService } from "@/modules/invoices/invoice.service";
 import { displayName } from "@/modules/crm/customer.service";
 import { settingsService } from "@/modules/settings/settings.service";
 import { InvoiceStatusSelect } from "../InvoiceStatusSelect";
+import { InvoiceActions } from "./InvoiceActions";
 
 export const dynamic = "force-dynamic";
 
@@ -37,17 +38,46 @@ export default async function InvoiceDetailPage({
         }
       />
 
-      <Card className="mb-6 flex items-center justify-between p-4">
+      <Card className="mb-6 flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex items-center gap-3 text-sm">
           <span className="text-slate-500">Status:</span>
           <InvoiceStatusSelect id={invoice.id} status={invoice.status} />
+          {invoice.isCancellation && (
+            <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+              Stornorechnung
+            </span>
+          )}
         </div>
-        {invoice.order && (
-          <Link href={`/orders/${invoice.order.id}`} className="text-sm text-brand-700">
-            Bestellung {invoice.order.orderNumber}
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {invoice.order && (
+            <Link href={`/orders/${invoice.order.id}`} className="text-sm text-brand-700">
+              Bestellung {invoice.order.orderNumber}
+            </Link>
+          )}
+          <InvoiceActions
+            id={invoice.id}
+            status={invoice.status}
+            isCancellation={invoice.isCancellation}
+          />
+        </div>
       </Card>
+
+      {invoice.dunnings.length > 0 && (
+        <Card className="mb-6 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">Mahnungen</h3>
+          <ul className="space-y-1 text-sm">
+            {invoice.dunnings.map((dn) => (
+              <li key={dn.id} className="flex justify-between text-slate-600">
+                <span>
+                  Mahnstufe {dn.level} · gesendet{" "}
+                  {dn.sentAt ? new Date(dn.sentAt).toLocaleDateString("de-DE") : "—"}
+                </span>
+                <span>Mahngebühr: {formatEUR(dn.fee)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-4">
         <Card className="p-5">

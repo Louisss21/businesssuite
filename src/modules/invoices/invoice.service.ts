@@ -13,7 +13,10 @@ const fullInclude = {
   items: { orderBy: { sortOrder: "asc" } },
   accountingPeriod: true,
   order: { select: { id: true, orderNumber: true } },
+  dunnings: { orderBy: { level: "asc" } },
 } as const;
+
+const DUNNING_FEES = [0, 5, 10]; // Stufe 1..3
 
 export const invoiceService = {
   list(query?: {
@@ -132,5 +135,80 @@ export const invoiceService = {
     await this.getById(id); // 404 wenn nicht vorhanden
     // InvoiceItems & Dunnings werden per Cascade mitgelöscht
     return prisma.invoice.delete({ where: { id } });
+  },
+
+  /** OPEN-Rechnungen mit überschrittenem Fälligkeitsdatum auf OVERDUE setzen. */
+  markOverdue() {
+    return prisma.invoice.updateMany({
+      where: { status: "OPEN", isCancellation: false, dueDate: { lt: new Date() } },
+      data: { status: "OVERDUE" },
+    });
+  },
+
+  /** Mahnung für eine überfällige Rechnung erzeugen (Stufe steigt automatisch). */
+  async createDunning(id: string) {
+    const inv = await this.getById(id);
+    if (inv.status !== "OVERDUE") {
+      throw new AppError("Mahnungen sind nur für überfällige Rechnungen möglich.");
+    }
+    const existing = await prisma.dunning.count({ where: { invoiceId: id } });
+    const level = Math.min(existing + 1, 3);
+    const fee = DUNNING_FEES[level - 1] ?? 0;
+    return prisma.dunning.create({
+      data: {
+        invoiceId: id,
+        level,
+        fee,
+        sentAt: new Date(),
+        dueDate: new Date(Date.now() + 7 * 86_400_000),
+      },
+    });
+  },
+
+  /** Rechnung stornieren: erzeugt eine Stornorechnung (negative Beträge), Original -> CANCELLED. */
+  async cancel(id: string) {
+    const inv = await this.getById(id);
+    if (inv.isCancellation) throw new AppError("Eine Stornorechnung kann nicht storniert werden.");
+    if (inv.status === "CANCELLED") throw new AppError("Rechnung ist bereits storniert.");
+
+    const settings = await settingsService.get();
+    const issued = new Date();
+    const period = await accountingPeriodService.ensureForDate(issued);
+    const year = issued.getFullYear();
+
+    return prisma.$transaction(async (tx) => {
+      const invoiceNumber = await nextNumber(tx, "invoice", year, settings.invoiceNumberFormat);
+      const storno = await tx.invoice.create({
+        data: {
+          invoiceNumber,
+          status: "PAID",
+          isCancellation: true,
+          originalInvoiceId: inv.id,
+          customerId: inv.customerId,
+          issueDate: issued,
+          dueDate: issued,
+          paidAt: issued,
+          netTotal: inv.netTotal.negated(),
+          taxTotal: inv.taxTotal.negated(),
+          grossTotal: inv.grossTotal.negated(),
+          accountingPeriodId: period.id,
+          items: {
+            create: inv.items.map((it) => ({
+              productName: it.productName,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice.negated(),
+              taxRate: it.taxRate,
+              netAmount: it.netAmount.negated(),
+              taxAmount: it.taxAmount.negated(),
+              grossAmount: it.grossAmount.negated(),
+              sortOrder: it.sortOrder,
+            })),
+          },
+        },
+        include: fullInclude,
+      });
+      await tx.invoice.update({ where: { id }, data: { status: "CANCELLED" } });
+      return storno;
+    });
   },
 };

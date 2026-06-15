@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SearchPalette } from "@/components/SearchPalette";
 
 export type Role =
   | "ADMIN"
@@ -130,16 +131,19 @@ export function AppShell({
 
       {/* Hauptbereich */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile-Topbar */}
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-          <button
-            onClick={() => setOpen(true)}
-            className="rounded-md p-1 text-slate-600 hover:bg-slate-100"
-            aria-label="Menü öffnen"
-          >
-            <span className="text-xl">☰</span>
-          </button>
-          <span className="font-bold text-brand-700">Business Suite</span>
+        {/* Topbar (mobil: Hamburger + Titel; immer: globale Suche) */}
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setOpen(true)}
+              className="rounded-md p-1 text-slate-600 hover:bg-slate-100 md:hidden"
+              aria-label="Menü öffnen"
+            >
+              <span className="text-xl">☰</span>
+            </button>
+            <span className="font-bold text-brand-700 md:hidden">Business Suite</span>
+          </div>
+          <SearchPalette />
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">

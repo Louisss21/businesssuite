@@ -25,6 +25,7 @@ export function RecipientActions({
   }
 
   async function remove() {
+    if (!window.confirm("Empfänger aus der Kampagne entfernen?")) return;
     await fetch(`/api/campaigns/${campaignId}/recipients/${recipientId}`, { method: "DELETE" });
     router.refresh();
   }

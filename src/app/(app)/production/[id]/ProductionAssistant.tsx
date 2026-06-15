@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card } from "@/components/ui";
 
@@ -48,6 +48,16 @@ export function ProductionAssistant({
   const [showMore, setShowMore] = useState(false);
   const [serial, setSerial] = useState(order.serialNumber ?? serialSuggestion);
   const [savingSerial, setSavingSerial] = useState(false);
+
+  // Fix 4.1: Modal per ESC schließen (Backdrop-Klick ist bereits aktiv)
+  useEffect(() => {
+    if (!showMore) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowMore(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showMore]);
 
   if (order.status === "COMPLETED") {
     return (

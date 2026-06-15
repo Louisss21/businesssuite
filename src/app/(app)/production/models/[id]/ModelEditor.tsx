@@ -90,7 +90,7 @@ export function ModelEditor({
                   <li key={b.id} className="flex items-center justify-between px-3 py-2 text-sm">
                     <span><strong>{b.quantity}×</strong> {b.componentName}</span>
                     <button
-                      onClick={() => call(`/api/table-models/bom/${b.id}`, "DELETE")}
+                      onClick={() => window.confirm("Bauteil aus diesem Schritt entfernen?") && call(`/api/table-models/bom/${b.id}`, "DELETE")}
                       className="text-slate-300 hover:text-red-600"
                       title="Entfernen"
                     >

@@ -3,26 +3,45 @@ import { prisma } from "@/lib/db";
 import { Card, PageHeader, Badge, Table, Th, Td, Empty } from "@/components/ui";
 import { formatEUR } from "@/lib/money";
 import { displayName } from "@/modules/crm/customer.service";
+import { taskService } from "@/modules/tasks/task.service";
 
 export const dynamic = "force-dynamic";
 
+function dueClass(due: Date | null) {
+  if (!due) return "text-slate-500";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(due);
+  d.setHours(0, 0, 0, 0);
+  if (d < today) return "font-medium text-red-600";
+  if (d.getTime() === today.getTime()) return "font-medium text-amber-600";
+  return "text-slate-700";
+}
+
 async function getStats() {
-  const [customers, openLeads, openOrders, openInvoices, openSum, recentInvoices] =
-    await Promise.all([
-      prisma.customer.count(),
-      prisma.lead.count({ where: { status: { in: ["NEW", "CONTACTED", "QUALIFIED"] } } }),
-      prisma.order.count({ where: { status: { in: ["DRAFT", "CONFIRMED", "IN_PROGRESS"] } } }),
-      prisma.invoice.count({ where: { status: "OPEN" } }),
-      prisma.invoice.aggregate({
-        where: { status: "OPEN" },
-        _sum: { grossTotal: true },
-      }),
-      prisma.invoice.findMany({
-        take: 5,
-        orderBy: { issueDate: "desc" },
-        include: { customer: true },
-      }),
-    ]);
+  const [
+    customers,
+    openLeads,
+    openOrders,
+    openInvoices,
+    openSum,
+    recentInvoices,
+    openTasks,
+    dueTasks,
+  ] = await Promise.all([
+    prisma.customer.count(),
+    prisma.lead.count({ where: { status: { in: ["NEW", "CONTACTED", "QUALIFIED"] } } }),
+    prisma.order.count({ where: { status: { in: ["DRAFT", "CONFIRMED", "IN_PROGRESS"] } } }),
+    prisma.invoice.count({ where: { status: "OPEN" } }),
+    prisma.invoice.aggregate({ where: { status: "OPEN" }, _sum: { grossTotal: true } }),
+    prisma.invoice.findMany({
+      take: 5,
+      orderBy: { issueDate: "desc" },
+      include: { customer: true },
+    }),
+    taskService.openCount(),
+    taskService.dueSoon(5),
+  ]);
   return {
     customers,
     openLeads,
@@ -30,6 +49,8 @@ async function getStats() {
     openInvoices,
     openSum: openSum._sum.grossTotal ?? 0,
     recentInvoices,
+    openTasks,
+    dueTasks,
   };
 }
 
@@ -49,7 +70,7 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Überblick über dein Geschäft" />
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <Stat label="Kunden" value={String(s.customers)} href="/crm" />
         <Stat label="Offene Leads" value={String(s.openLeads)} href="/leads" />
         <Stat label="Offene Bestellungen" value={String(s.openOrders)} href="/orders" />
@@ -58,7 +79,31 @@ export default async function DashboardPage() {
           value={`${s.openInvoices} · ${formatEUR(s.openSum)}`}
           href="/invoices"
         />
+        <Stat label="Offene Aufgaben" value={String(s.openTasks)} href="/tasks" />
       </div>
+
+      <h2 className="mb-3 mt-8 text-lg font-semibold text-slate-900">
+        Aufgaben heute &amp; überfällig
+      </h2>
+      <Card className="divide-y divide-slate-100">
+        {s.dueTasks.map((t) => (
+          <Link
+            key={t.id}
+            href={`/tasks/${t.id}`}
+            className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+          >
+            <span className="text-sm font-medium text-slate-800">{t.title}</span>
+            <span className={`text-sm ${dueClass(t.dueAt)}`}>
+              {t.dueAt ? new Date(t.dueAt).toLocaleDateString("de-DE") : "—"}
+            </span>
+          </Link>
+        ))}
+        {s.dueTasks.length === 0 && (
+          <div className="px-4 py-6 text-center text-sm text-slate-400">
+            Keine fälligen Aufgaben. 🎉
+          </div>
+        )}
+      </Card>
 
       <h2 className="mb-3 mt-8 text-lg font-semibold text-slate-900">
         Neueste Rechnungen

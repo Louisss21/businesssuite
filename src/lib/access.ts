@@ -12,6 +12,7 @@ const RULES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/products", roles: ["WAREHOUSE", "SALES"] },
   { prefix: "/invoices", roles: ["ACCOUNTING"] },
   { prefix: "/billing-archive", roles: ["ACCOUNTING"] },
+  { prefix: "/tasks", roles: ["SALES", "MARKETING"] },
   { prefix: "/settings", roles: [] }, // nur ADMIN/MEMBER
 ];
 

@@ -3,6 +3,7 @@ import { PageHeader, LinkButton } from "@/components/ui";
 import { leadService } from "@/modules/crm/lead.service";
 import { LeadDetailForm } from "./LeadDetailForm";
 import { DeleteButton } from "@/components/DeleteButton";
+import { TaskQuickAdd } from "@/components/TaskQuickAdd";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,10 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
           customerId: lead.customerId,
         }}
       />
+      <div className="mt-6">
+        <h3 className="mb-2 text-sm font-semibold text-slate-900">Aufgaben</h3>
+        <TaskQuickAdd presetLeadId={lead.id} />
+      </div>
     </>
   );
 }

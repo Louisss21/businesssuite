@@ -4,6 +4,7 @@ import { PageHeader, Table, Th, Td, Badge, Empty, LinkButton } from "@/component
 import { formatEUR } from "@/lib/money";
 import { customerService, displayName } from "@/modules/crm/customer.service";
 import { CustomerInfoCard } from "./CustomerInfoCard";
+import { TaskQuickAdd } from "@/components/TaskQuickAdd";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,13 @@ export default async function CustomerDetailPage({
         </div>
 
         <div className="space-y-6 lg:col-span-2">
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">Aufgaben</h3>
+            </div>
+            <TaskQuickAdd presetCustomerId={customer.id} />
+          </section>
+
           <section>
             <h3 className="mb-2 text-sm font-semibold text-slate-900">Bestellungen</h3>
             <Table>

@@ -29,9 +29,9 @@ const NAV: NavItem[] = [
   { href: "/products", label: "Produkte", icon: "▣", roles: ["WAREHOUSE", "SALES"] },
   { href: "/invoices", label: "Rechnungen", icon: "₪", roles: ["ACCOUNTING"] },
   { href: "/billing-archive", label: "Rechnungsarchiv", icon: "🗄", roles: ["ACCOUNTING"] },
+  { href: "/tasks", label: "Aufgaben", icon: "✓", roles: ["SALES", "MARKETING"] },
   { href: "/settings", label: "Einstellungen", icon: "⚙", roles: [] }, // nur ADMIN/MEMBER
   // Folgen mit dem jeweiligen Feature:
-  // { href: "/tasks", label: "Aufgaben", ... }
   // { href: "/campaigns", label: "Kampagnen", ... }
 ];
 

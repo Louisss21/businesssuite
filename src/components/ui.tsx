@@ -133,12 +133,11 @@ const BADGE_COLORS: Record<string, string> = {
   CONFIRMED: "bg-blue-100 text-blue-700",
   IN_PROGRESS: "bg-amber-100 text-amber-700",
   COMPLETED: "bg-green-100 text-green-700",
-  CANCELLED: "bg-red-100 text-red-700",
+  CANCELLED: "bg-slate-200 text-slate-600", // Order- & Invoice-Storno
   // Invoice
   OPEN: "bg-amber-100 text-amber-700",
   PAID: "bg-green-100 text-green-700",
   OVERDUE: "bg-red-100 text-red-700",
-  CANCELLED: "bg-slate-200 text-slate-600",
 };
 
 export function Badge({ value }: { value: string }) {

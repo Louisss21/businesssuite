@@ -9,6 +9,8 @@ export default async function ProductionOrderPage({ params }: { params: { id: st
   const order = await productionService.getById(params.id).catch(() => null);
   if (!order) notFound();
 
+  const serialSuggestion = order.serialNumber ? "" : await productionService.suggestSerial();
+
   const steps = order.tableModel.steps.map((s) => ({
     order: s.order,
     title: s.title,
@@ -42,6 +44,7 @@ export default async function ProductionOrderPage({ params }: { params: { id: st
         steps={steps}
         modelName={order.tableModel.name}
         productName={order.tableModel.product?.name ?? null}
+        serialSuggestion={serialSuggestion}
       />
     </>
   );

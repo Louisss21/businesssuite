@@ -32,11 +32,13 @@ export function ProductionAssistant({
   steps,
   modelName,
   productName,
+  serialSuggestion = "",
 }: {
   order: OrderData;
   steps: StepData[];
   modelName: string;
   productName: string | null;
+  serialSuggestion?: string;
 }) {
   const router = useRouter();
   const total = steps.length;
@@ -44,7 +46,7 @@ export function ProductionAssistant({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
-  const [serial, setSerial] = useState(order.serialNumber ?? "");
+  const [serial, setSerial] = useState(order.serialNumber ?? serialSuggestion);
   const [savingSerial, setSavingSerial] = useState(false);
 
   if (order.status === "COMPLETED") {
@@ -208,8 +210,12 @@ export function ProductionAssistant({
                 {savingSerial ? "…" : order.serialNumber ? "Aktualisieren" : "Speichern"}
               </Button>
             </div>
-            {order.serialNumber && (
+            {order.serialNumber ? (
               <p className="mt-1 text-xs text-green-600">Gespeichert: {order.serialNumber}</p>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500">
+                Format: mind. 4 Zeichen, Buchstaben/Ziffern/Bindestriche (Vorschlag bereits eingetragen).
+              </p>
             )}
           </div>
         )}

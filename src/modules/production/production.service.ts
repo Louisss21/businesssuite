@@ -53,13 +53,23 @@ export const productionService = {
 
   async saveSerial(id: string, serial: string) {
     const s = (serial ?? "").trim();
-    if (!s) throw new AppError("Seriennummer darf nicht leer sein.");
+    // Fix 2.3: Format – nicht leer, min. 4 Zeichen, alphanumerisch (Bindestriche erlaubt)
+    if (!/^[A-Za-z0-9-]{4,}$/.test(s)) {
+      throw new AppError("Ungültige Seriennummer: mind. 4 Zeichen, nur Buchstaben, Ziffern und Bindestriche.");
+    }
     const dup = await prisma.productionOrder.findFirst({
       where: { serialNumber: s, NOT: { id } },
     });
     if (dup) throw new AppError("Diese Seriennummer ist bereits vergeben.");
     await this.getById(id);
     return prisma.productionOrder.update({ where: { id }, data: { serialNumber: s } });
+  },
+
+  /** Fix 2.3: Vorschlag SUS-{YYYY}-{laufende Nr.} (manuell überschreibbar). */
+  async suggestSerial(): Promise<string> {
+    const year = new Date().getFullYear();
+    const n = await prisma.productionOrder.count();
+    return `SUS-${year}-${String(n).padStart(4, "0")}`;
   },
 
   /**

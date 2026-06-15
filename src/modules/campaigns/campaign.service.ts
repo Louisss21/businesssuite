@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { notFound } from "@/lib/http";
+import { AppError, notFound } from "@/lib/http";
 import { displayName } from "@/modules/crm/customer.service";
 import {
   campaignCreateSchema,
@@ -68,6 +68,17 @@ export const campaignService = {
 
   create(input: unknown) {
     const data = campaignCreateSchema.parse(input);
+    const start = d(data.startDate);
+    const end = d(data.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Fix 2.1: Plausibilität der Datumsbereiche
+    if (start && end && end < start) {
+      throw new AppError("Das Enddatum muss nach dem Startdatum liegen.");
+    }
+    if (start && start < today) {
+      throw new AppError("Das Startdatum einer neuen Kampagne darf nicht in der Vergangenheit liegen.");
+    }
     return prisma.campaign.create({
       data: {
         name: data.name,
@@ -153,23 +164,55 @@ export const campaignService = {
     return { success: true };
   },
 
-  /** Adressliste für CSV-Export (Druckerei-Format). */
-  async exportRows(campaignId: string) {
-    const c = await this.getById(campaignId);
-    return c.recipients.map((r) => {
-      const parts = r.address.split(", ");
+  /** Adressliste für CSV-Export (Druckerei-Format mit Ansprechpartner & Land). */
+  async exportRows(campaignId: string): Promise<ExportAddress[]> {
+    const recipients = await prisma.campaignRecipient.findMany({ where: { campaignId } });
+    const custIds = [...new Set(recipients.map((r) => r.customerId).filter(Boolean) as string[])];
+    const custs = custIds.length
+      ? await prisma.customer.findMany({ where: { id: { in: custIds } }, include: { contacts: true } })
+      : [];
+    const map = new Map(custs.map((c) => [c.id, c]));
+
+    return recipients.map((r) => {
+      const c = r.customerId ? map.get(r.customerId) : undefined;
+      if (!c) {
+        return { anrede: "", name: "—", ansprechpartner: "", strasse: "", plz: "", ort: "", land: "" };
+      }
+      const primary = c.contacts.find((x) => x.isPrimary) ?? c.contacts[0];
+      const ansprechpartner = primary
+        ? `${primary.firstName} ${primary.lastName}`.trim()
+        : c.type === "PRIVATE"
+          ? [c.firstName, c.lastName].filter(Boolean).join(" ")
+          : "";
       return {
-        name: r.name,
-        strasse: parts[0] ?? "",
-        plzOrt: parts[1] ?? "",
+        anrede: "",
+        name: displayName(c),
+        ansprechpartner,
+        strasse: c.street ?? "",
+        plz: c.postalCode ?? "",
+        ort: c.city ?? "",
+        land: c.country ?? "",
       };
     });
   },
 };
 
-export function recipientsToCSV(rows: { name: string; strasse: string; plzOrt: string }[]): string {
+export interface ExportAddress {
+  anrede: string;
+  name: string;
+  ansprechpartner: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+  land: string;
+}
+
+export function recipientsToCSV(rows: ExportAddress[]): string {
   const esc = (v: string) => (/[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const lines = ["Name;Strasse;PLZ_Ort"];
-  for (const r of rows) lines.push([r.name, r.strasse, r.plzOrt].map(esc).join(";"));
+  const headers = ["Anrede", "Name/Firma", "Ansprechpartner", "Strasse", "PLZ", "Ort", "Land"];
+  const lines = [headers.join(";")];
+  for (const r of rows) {
+    lines.push([r.anrede, r.name, r.ansprechpartner, r.strasse, r.plz, r.ort, r.land].map(esc).join(";"));
+  }
   return lines.join("\r\n");
 }

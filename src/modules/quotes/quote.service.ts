@@ -39,8 +39,23 @@ function buildItems(items: QuoteItemInput[]) {
 const normDate = (v: unknown): Date | null =>
   v instanceof Date ? v : null;
 
+const startOfToday = (): Date => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
 export const quoteService = {
-  list(query?: { status?: string }) {
+  /** Fix 2.2: abgelaufene Angebote (validUntil < heute, Status SENT/DRAFT) auf EXPIRED setzen. */
+  markExpired() {
+    return prisma.quote.updateMany({
+      where: { status: { in: ["SENT", "DRAFT"] }, validUntil: { not: null, lt: startOfToday() } },
+      data: { status: "EXPIRED" },
+    });
+  },
+
+  async list(query?: { status?: string }) {
+    await this.markExpired();
     return prisma.quote.findMany({
       where: { status: query?.status as never },
       orderBy: { createdAt: "desc" },
@@ -49,6 +64,7 @@ export const quoteService = {
   },
 
   async getById(id: string) {
+    await this.markExpired();
     const quote = await prisma.quote.findUnique({
       where: { id },
       include: { customer: true, items: { orderBy: { sortOrder: "asc" } } },
@@ -59,6 +75,11 @@ export const quoteService = {
 
   async create(input: unknown) {
     const data = quoteCreateSchema.parse(input);
+    // Fix 2.1: "gültig bis" darf bei neuem Angebot nicht in der Vergangenheit liegen
+    const vu = normDate(data.validUntil);
+    if (vu && vu < startOfToday()) {
+      throw new AppError("„Gültig bis" darf nicht in der Vergangenheit liegen.");
+    }
     const settings = await settingsService.get();
     const year = new Date().getFullYear();
     const { rows, totals } = buildItems(data.items);

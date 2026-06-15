@@ -8,13 +8,13 @@ const RULES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/crm", roles: ["SALES", "MARKETING"] },
   { prefix: "/leads", roles: ["SALES", "MARKETING"] },
   { prefix: "/quotes", roles: ["SALES"] },
-  { prefix: "/orders", roles: ["SALES"] },
-  { prefix: "/products", roles: ["WAREHOUSE", "SALES"] },
+  { prefix: "/orders", roles: ["SALES", "ACCOUNTING"] },
+  { prefix: "/products", roles: ["WAREHOUSE"] },
   { prefix: "/production", roles: ["WAREHOUSE"] },
   { prefix: "/inventory", roles: ["WAREHOUSE"] },
   { prefix: "/invoices", roles: ["ACCOUNTING"] },
   { prefix: "/billing-archive", roles: ["ACCOUNTING"] },
-  { prefix: "/tasks", roles: ["SALES", "MARKETING"] },
+  { prefix: "/tasks", roles: ["SALES"] },
   { prefix: "/campaigns", roles: ["MARKETING"] },
   { prefix: "/settings", roles: [] }, // nur ADMIN/MEMBER
 ];

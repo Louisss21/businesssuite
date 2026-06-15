@@ -62,10 +62,39 @@ export const productionService = {
     return prisma.productionOrder.update({ where: { id }, data: { serialNumber: s } });
   },
 
+  /**
+   * Auftrag abbrechen. Fix 1.1: bereits entnommene Bauteile werden per
+   * Gegenbuchung (IN) ins Lager zurückgebucht – transaktional & idempotent
+   * (nur ein IN_PROGRESS-Auftrag kann storniert werden).
+   */
   async cancel(id: string) {
     const order = await this.getById(id);
     if (order.status !== "IN_PROGRESS") throw new AppError("Auftrag ist nicht in Bearbeitung.");
-    return prisma.productionOrder.update({ where: { id }, data: { status: "CANCELLED" } });
+
+    const outMovements = await prisma.stockMovement.findMany({
+      where: { referenceId: id, direction: "OUT" },
+    });
+
+    return prisma.$transaction(async (tx) => {
+      for (const m of outMovements) {
+        const back = Math.abs(m.quantity);
+        if (back === 0) continue;
+        await tx.stockMovement.create({
+          data: {
+            componentId: m.componentId,
+            quantity: back,
+            direction: "IN",
+            reason: `Storno Produktionsabbruch ${id}`,
+            referenceId: id,
+          },
+        });
+        await tx.component.update({
+          where: { id: m.componentId },
+          data: { stockQty: { increment: back } },
+        });
+      }
+      return tx.productionOrder.update({ where: { id }, data: { status: "CANCELLED" } });
+    });
   },
 
   /**
@@ -73,7 +102,7 @@ export const productionService = {
    * StepLog schreiben, Fortschritt erhöhen; bei letztem Schritt fertigstellen.
    * Danach Mindestbestandsprüfung + ggf. Nachbestell-Mail.
    */
-  async completeStep(id: string) {
+  async completeStep(id: string, expectedStep?: number) {
     const order = await this.getById(id);
     if (order.status !== "IN_PROGRESS") throw new AppError("Auftrag ist nicht in Bearbeitung.");
 
@@ -82,8 +111,30 @@ export const productionService = {
     const step = steps.find((s) => s.order === order.currentStep);
     if (!step) throw new AppError("Kein offener Arbeitsschritt vorhanden.");
 
+    // Fix 1.2: erwarteter Schritt muss dem aktuellen entsprechen (gegen Doppel-/Stale-Requests)
+    if (expectedStep !== undefined && expectedStep !== order.currentStep) {
+      throw new AppError("Dieser Schritt ist nicht aktuell – er wurde vermutlich schon abgeschlossen.", 409);
+    }
+    // Fix 1.2: kein zweites Log für denselben Schritt (Idempotenz)
+    const existingLog = await prisma.productionStepLog.findFirst({
+      where: { productionOrderId: id, stepOrder: step.order },
+    });
+    if (existingLog) {
+      throw new AppError("Dieser Schritt wurde bereits gebucht.", 409);
+    }
+
     if (step.requiresInput && !order.serialNumber) {
       throw new AppError(`${step.inputLabel ?? "Eingabe"} ist erforderlich, bevor du fortfahren kannst.`);
+    }
+
+    // Fix 1.3: Bestandsprüfung – kein Negativbestand, Schritt sonst blockieren
+    const insufficient = step.bomItems.filter((b) => b.component.stockQty < b.quantity);
+    if (insufficient.length > 0) {
+      await componentService.notifyLowStock(insufficient.map((b) => b.componentId));
+      const list = insufficient
+        .map((b) => `${b.component.name} (benötigt ${b.quantity}, vorhanden ${b.component.stockQty})`)
+        .join("; ");
+      throw new AppError(`Nicht genug Bestand: ${list}. Bitte Wareneingang buchen.`, 409);
     }
 
     const isLast = step.order >= maxOrder;

@@ -106,7 +106,11 @@ export function ProductionAssistant({
     setBusy(true);
     setError(null);
     setInfo(null);
-    const res = await fetch(`/api/production/${order.id}/complete-step`, { method: "POST" });
+    const res = await fetch(`/api/production/${order.id}/complete-step`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedStep: order.currentStep }),
+    });
     setBusy(false);
     if (res.ok) {
       const { data } = await res.json();
@@ -181,7 +185,7 @@ export function ProductionAssistant({
             </ul>
             {insufficient.length > 0 && (
               <p className="mt-2 text-sm font-medium text-red-600">
-                ⚠ {insufficient.length} Bauteil(e) reichen nicht – Bestand wird negativ. Entnahme trotzdem möglich, Nachbestellung wird ausgelöst.
+                ⚠ {insufficient.length} Bauteil(e) reichen nicht aus. Der Schritt ist blockiert – bitte zuerst Wareneingang buchen (Lager). Eine Nachbestellung wurde ausgelöst.
               </p>
             )}
           </div>
@@ -214,8 +218,8 @@ export function ProductionAssistant({
         {info && <p className="mt-3 text-sm text-amber-600">{info}</p>}
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Button onClick={completeStep} disabled={busy || serialMissing}>
-            {order.currentStep === total ? "Fertigstellen ✓" : "Schritt abschließen / Weiter →"}
+          <Button onClick={completeStep} disabled={busy || serialMissing || insufficient.length > 0}>
+            {busy ? "Wird gebucht…" : order.currentStep === total ? "Fertigstellen ✓" : "Schritt abschließen / Weiter →"}
           </Button>
           <Button variant="danger" onClick={cancel} disabled={busy}>
             Produktion abbrechen

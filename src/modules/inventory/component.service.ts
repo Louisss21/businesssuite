@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { notFound } from "@/lib/http";
+import { AppError, notFound } from "@/lib/http";
 import { sendMail } from "@/lib/email";
 import { settingsService } from "@/modules/settings/settings.service";
 
@@ -68,6 +68,12 @@ export const componentService = {
   async adjustStock(id: string, input: unknown) {
     const c = await this.getById(id);
     const { delta, reason } = stockAdjustSchema.parse(input);
+    if (c.stockQty + delta < 0) {
+      throw new AppError(
+        `Bestand darf nicht negativ werden (aktuell ${c.stockQty}, Buchung ${delta}).`,
+        422,
+      );
+    }
     return prisma.$transaction(async (tx) => {
       await tx.stockMovement.create({
         data: {

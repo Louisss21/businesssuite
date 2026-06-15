@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PageHeader, Table, Th, Td, Empty, Badge } from "@/components/ui";
+import { PageHeader, Table, Th, Td, Empty, Badge, LinkButton } from "@/components/ui";
 import { leadService } from "@/modules/crm/lead.service";
 import { customerService, displayName } from "@/modules/crm/customer.service";
 import { DeleteButton } from "@/components/DeleteButton";
@@ -17,7 +17,11 @@ export default async function LeadsPage() {
 
   return (
     <>
-      <PageHeader title="Leads" subtitle="Einfaches Lead-Management" />
+      <PageHeader
+        title="Leads"
+        subtitle="Einfaches Lead-Management"
+        action={<LinkButton href="/leads/import" variant="ghost">⬆ Import</LinkButton>}
+      />
       <LeadForm customers={options} />
       <Table>
         <thead>

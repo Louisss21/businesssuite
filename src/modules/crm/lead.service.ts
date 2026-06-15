@@ -74,6 +74,79 @@ export const leadService = {
     return prisma.lead.delete({ where: { id } });
   },
 
+  /**
+   * Massen-Import von Leads. Dedupliziert über E-Mail.
+   * mode "skip" = Duplikate überspringen, "update" = vorhandene aktualisieren.
+   * dryRun = nur zählen (Dublettenprüfung), nichts schreiben.
+   */
+  async bulkImport(
+    rows: Record<string, string>[],
+    mode: "skip" | "update",
+    dryRun = false,
+  ) {
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    let duplicates = 0;
+
+    for (const r of rows) {
+      const email = (r.email || "").trim().toLowerCase();
+      const title =
+        (r.title || "").trim() ||
+        (r.company || "").trim() ||
+        [r.firstName, r.lastName].filter(Boolean).join(" ").trim() ||
+        email ||
+        "Importierter Lead";
+
+      const existing = email
+        ? await prisma.lead.findFirst({ where: { email } })
+        : null;
+
+      if (existing) {
+        duplicates++;
+        if (dryRun) continue;
+        if (mode === "update") {
+          await prisma.lead.update({
+            where: { id: existing.id },
+            data: {
+              title,
+              firstName: orNull(r.firstName),
+              lastName: orNull(r.lastName),
+              phone: orNull(r.phone),
+              company: orNull(r.company),
+              source: orNull(r.source) ?? "Import",
+            },
+          });
+          updated++;
+        } else {
+          skipped++;
+        }
+        continue;
+      }
+
+      if (dryRun) {
+        created++;
+        continue;
+      }
+      await prisma.lead.create({
+        data: {
+          title,
+          status: "NEW",
+          email: email || null,
+          firstName: orNull(r.firstName),
+          lastName: orNull(r.lastName),
+          phone: orNull(r.phone),
+          company: orNull(r.company),
+          source: orNull(r.source) ?? "Import",
+          tags: [],
+        },
+      });
+      created++;
+    }
+
+    return { total: rows.length, created, updated, skipped, duplicates };
+  },
+
   /** Lead in einen Kunden umwandeln (Status -> WON, Verknüpfung gesetzt). */
   async convert(id: string) {
     const lead = await this.getById(id);

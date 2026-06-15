@@ -17,9 +17,10 @@ function buildWhere(f: TargetFilter): Prisma.CustomerWhereInput {
   if (f.customerType) where.type = f.customerType;
   if (f.classification) where.classification = f.classification;
   if (f.plzFrom || f.plzTo) {
-    where.postalCode = {};
-    if (f.plzFrom) where.postalCode.gte = f.plzFrom;
-    if (f.plzTo) where.postalCode.lte = f.plzTo;
+    where.postalCode = {
+      gte: f.plzFrom || undefined,
+      lte: f.plzTo || undefined,
+    };
   }
   if (f.noPurchaseMonths && Number(f.noPurchaseMonths) > 0) {
     const cutoff = new Date();

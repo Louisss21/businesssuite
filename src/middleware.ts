@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Session-Cookies und leitet sonst auf /login. Die kryptografische
  * Verifikation passiert serverseitig in getCurrentUser() (Node-Runtime).
  */
-const PUBLIC = ["/login", "/api/auth/login", "/api/health"];
+const PUBLIC = ["/login", "/api/auth/login", "/api/health", "/api/debug/pdf-test"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

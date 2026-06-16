@@ -8,27 +8,28 @@ import {
 } from "@react-pdf/renderer";
 
 /**
- * Rechnungs-PDF (Layout). Bekommt rein serialisierbare Daten (numbers/strings),
- * die Decimal-Konvertierung passiert in der API-Route.
+ * Angebots-PDF (A2). Gleiche Engine/Optik wie das Rechnungs-PDF, jedoch mit
+ * Rabatt-Spalte und "gültig bis". Bekommt rein serialisierbare Daten.
  */
 
-export interface InvoicePdfItem {
-  productName: string;
-  quantity: number;
+export interface QuotePdfItem {
+  name: string;
+  qty: number;
   unitPrice: number;
+  discountPct: number;
   taxRate: number;
   netAmount: number;
   grossAmount: number;
 }
 
-export interface InvoicePdfData {
-  invoiceNumber: string;
+export interface QuotePdfData {
+  number: string;
   issueDate: string;
-  dueDate: string;
+  validUntil: string | null;
   netTotal: number;
   taxTotal: number;
   grossTotal: number;
-  isCancellation: boolean;
+  notes: string | null;
   company: {
     companyName: string;
     street: string;
@@ -38,9 +39,6 @@ export interface InvoicePdfData {
     phone: string;
     taxNumber: string;
     vatId: string;
-    bankName: string;
-    iban: string;
-    bic: string;
     footer: string;
     logoDataUri?: string;
   };
@@ -51,7 +49,7 @@ export interface InvoicePdfData {
     city: string;
     vatId: string;
   };
-  items: InvoicePdfItem[];
+  items: QuotePdfItem[];
 }
 
 const eur = (v: number) =>
@@ -83,10 +81,11 @@ const s = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 4,
   },
-  cName: { width: "40%" },
-  cQty: { width: "10%", textAlign: "right" },
-  cPrice: { width: "16%", textAlign: "right" },
-  cTax: { width: "10%", textAlign: "right" },
+  cName: { width: "34%" },
+  cQty: { width: "9%", textAlign: "right" },
+  cPrice: { width: "15%", textAlign: "right" },
+  cDisc: { width: "9%", textAlign: "right" },
+  cTax: { width: "9%", textAlign: "right" },
   cNet: { width: "12%", textAlign: "right" },
   cGross: { width: "12%", textAlign: "right" },
   totals: { marginTop: 12, alignSelf: "flex-end", width: "45%" },
@@ -114,11 +113,11 @@ const s = StyleSheet.create({
   },
 });
 
-export function InvoicePdf({ data }: { data: InvoicePdfData }) {
+export function QuotePdf({ data }: { data: QuotePdfData }) {
   const c = data.company;
   const k = data.customer;
   return (
-    <Document title={data.invoiceNumber}>
+    <Document title={data.number}>
       <Page size="A4" style={s.page}>
         {c.logoDataUri ? <Image style={s.logo} src={c.logoDataUri} /> : null}
         <Text style={s.senderLine}>
@@ -135,10 +134,10 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
             {!!k.vatId && <Text style={s.label}>USt-IdNr.: {k.vatId}</Text>}
           </View>
           <View style={s.meta}>
-            <Text style={s.h1}>{data.isCancellation ? "Stornorechnung" : "Rechnung"}</Text>
-            <Text>{data.invoiceNumber}</Text>
+            <Text style={s.h1}>Angebot</Text>
+            <Text>{data.number}</Text>
             <Text style={s.label}>Datum: {data.issueDate}</Text>
-            <Text style={s.label}>Fällig bis: {data.dueDate}</Text>
+            {data.validUntil && <Text style={s.label}>Gültig bis: {data.validUntil}</Text>}
           </View>
         </View>
 
@@ -147,15 +146,17 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
             <Text style={s.cName}>Produkt</Text>
             <Text style={s.cQty}>Menge</Text>
             <Text style={s.cPrice}>Einzelpreis</Text>
+            <Text style={s.cDisc}>Rabatt</Text>
             <Text style={s.cTax}>MwSt</Text>
             <Text style={s.cNet}>Netto</Text>
             <Text style={s.cGross}>Brutto</Text>
           </View>
           {data.items.map((it, i) => (
             <View style={s.tr} key={i}>
-              <Text style={s.cName}>{it.productName}</Text>
-              <Text style={s.cQty}>{it.quantity}</Text>
+              <Text style={s.cName}>{it.name}</Text>
+              <Text style={s.cQty}>{it.qty}</Text>
               <Text style={s.cPrice}>{eur(it.unitPrice)}</Text>
+              <Text style={s.cDisc}>{it.discountPct}%</Text>
               <Text style={s.cTax}>{it.taxRate}%</Text>
               <Text style={s.cNet}>{eur(it.netAmount)}</Text>
               <Text style={s.cGross}>{eur(it.grossAmount)}</Text>
@@ -178,12 +179,12 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
           </View>
         </View>
 
-        <View style={{ marginTop: 24 }}>
-          <Text style={s.label}>Zahlbar bis {data.dueDate} ohne Abzug auf folgendes Konto:</Text>
-          <Text>
-            {c.bankName} · IBAN {c.iban} · BIC {c.bic}
-          </Text>
-        </View>
+        {!!data.notes && (
+          <View style={{ marginTop: 20 }}>
+            <Text style={s.label}>Anmerkungen</Text>
+            <Text>{data.notes}</Text>
+          </View>
+        )}
 
         <View style={s.footer} fixed>
           <Text>{c.footer}</Text>

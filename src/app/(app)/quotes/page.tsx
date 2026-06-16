@@ -67,6 +67,13 @@ export default async function QuotesPage({
               <Td className="text-right">{formatEUR(q.grossTotal)}</Td>
               <Td className="text-right">
                 <div className="flex items-center justify-end gap-1">
+                  <a
+                    href={`/api/quotes/${q.id}/pdf`}
+                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"
+                    title="PDF herunterladen"
+                  >
+                    ⬇
+                  </a>
                   <Link
                     href={`/quotes/${q.id}`}
                     className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"

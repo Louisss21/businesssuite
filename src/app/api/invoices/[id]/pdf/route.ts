@@ -7,6 +7,7 @@ import { invoiceService } from "@/modules/invoices/invoice.service";
 import { settingsService } from "@/modules/settings/settings.service";
 import { displayName } from "@/modules/crm/customer.service";
 import { InvoicePdf, type InvoicePdfData } from "@/modules/invoices/invoice-pdf";
+import { loadLogoDataUri } from "@/modules/shared/pdf-logo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       invoiceService.getById(params.id),
       settingsService.get(),
     ]);
+    const logoDataUri = await loadLogoDataUri(settings.logoUrl);
 
     const data: InvoicePdfData = {
       invoiceNumber: invoice.invoiceNumber,
@@ -43,6 +45,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         iban: settings.iban,
         bic: settings.bic,
         footer: settings.invoiceFooter,
+        logoDataUri,
       },
       customer: {
         name: displayName(invoice.customer),

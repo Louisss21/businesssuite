@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui";
 import { settingsService } from "@/modules/settings/settings.service";
 import { SettingsForm } from "./SettingsForm";
 import { SettingsTabs } from "./SettingsTabs";
+import { LogoUpload } from "./LogoUpload";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export default async function SettingsPage() {
     <>
       <PageHeader title="Einstellungen" subtitle="Stammdaten & Systemkonfiguration" />
       <SettingsTabs active="general" />
+      <LogoUpload initialUrl={s.logoUrl} />
       <SettingsForm initial={initial} />
     </>
   );

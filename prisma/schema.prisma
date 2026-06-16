@@ -396,6 +396,9 @@ model CompanySettings {
   taxNumber   String  @default("")
   vatId       String  @default("")
 
+  // A3: Firmenlogo (Vercel Blob URL) – erscheint im Kopf aller PDFs.
+  logoUrl String @default("")
+
   // Bankverbindung (für Rechnungs-PDF)
   bankName String @default("")
   iban     String @default("")

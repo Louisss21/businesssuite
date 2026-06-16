@@ -45,4 +45,13 @@ export const settingsService = {
       create: { id: SINGLETON, ...data },
     });
   },
+
+  /** A3: Logo-URL (Vercel Blob) speichern bzw. entfernen ("" = kein Logo). */
+  async setLogo(logoUrl: string) {
+    return prisma.companySettings.upsert({
+      where: { id: SINGLETON },
+      update: { logoUrl },
+      create: { id: SINGLETON, logoUrl },
+    });
+  },
 };

@@ -30,6 +30,12 @@ export default async function QuoteDetailPage({ params }: { params: { id: string
         subtitle={displayName(quote.customer)}
         action={
           <div className="flex flex-wrap gap-2">
+            <a
+              href={`/api/quotes/${quote.id}/pdf`}
+              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              ⬇ PDF herunterladen
+            </a>
             <DeleteButton
               url={`/api/quotes/${quote.id}`}
               confirmText={`Angebot ${quote.number} wirklich löschen?`}

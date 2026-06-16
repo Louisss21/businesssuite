@@ -366,6 +366,28 @@ model AccountingPeriod {
 }
 
 // ----------------------------------------------------------------------------
+//  Eingangsrechnungen (A6) – Lieferantenrechnungen, getrennt von Ausgangsrechnungen
+// ----------------------------------------------------------------------------
+
+model IncomingInvoice {
+  id           String   @id @default(cuid())
+  supplierName String
+  invoiceNo    String?
+  invoiceDate  DateTime
+  amountNet    Float?
+  amountGross  Float?
+  taxAmount    Float?
+  status       String   @default("OPEN") // OPEN / PAID
+  fileUrl      String
+  source       String   @default("MANUAL") // MANUAL / EMAIL
+  createdAt    DateTime @default(now())
+
+  @@index([invoiceDate])
+  @@index([status])
+  @@map("incoming_invoices")
+}
+
+// ----------------------------------------------------------------------------
 //  Belegnummern-Sequenzen (pro Scope + Jahr eindeutig fortlaufend)
 // ----------------------------------------------------------------------------
 

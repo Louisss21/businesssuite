@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, PageHeader, Empty } from "@/components/ui";
+import { Card, PageHeader, Empty, LinkButton } from "@/components/ui";
 import { archiveService } from "@/modules/billing-archive/archive.service";
 import { formatEUR } from "@/lib/money";
 
@@ -14,6 +14,11 @@ export default async function BillingArchivePage() {
       <PageHeader
         title="Rechnungsarchiv"
         subtitle="Logische Buchhaltungs-Ordner: Jahr → Quartal → Monat"
+        action={
+          <LinkButton href="/billing-archive/incoming" variant="ghost">
+            Eingangsrechnungen →
+          </LinkButton>
+        }
       />
 
       {years.length === 0 && (

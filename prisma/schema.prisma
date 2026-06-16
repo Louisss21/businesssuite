@@ -212,6 +212,11 @@ model Lead {
   assignedUserId String?
   lostReason     String?
 
+  // Wiedervorlage-Automatik (A1/A4): Zeitpunkt der Kontaktaufnahme + Flag,
+  // ob bereits eine 14-Tage-Follow-up-Aufgabe erzeugt wurde (Idempotenz).
+  contactedAt         DateTime?
+  followupTaskCreated Boolean   @default(false)
+
   // Optionaler Bezug zu einem bestehenden Kunden
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)

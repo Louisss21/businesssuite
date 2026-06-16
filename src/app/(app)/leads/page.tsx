@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { PageHeader, Table, Th, Td, Empty, Badge, LinkButton } from "@/components/ui";
+import { PageHeader, Table, Th, Td, Empty, LinkButton } from "@/components/ui";
 import { leadService } from "@/modules/crm/lead.service";
 import { customerService, displayName } from "@/modules/crm/customer.service";
 import { DeleteButton } from "@/components/DeleteButton";
 import { LeadForm } from "./LeadForm";
+import { LeadStatusSelect } from "./LeadStatusSelect";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export default async function LeadsPage() {
                 <Td>{l.customer ? displayName(l.customer) : "—"}</Td>
                 <Td className="text-right">{l.score}</Td>
                 <Td>
-                  <Badge value={l.status} />
+                  <LeadStatusSelect id={l.id} status={l.status} />
                 </Td>
                 <Td className="text-right">
                   <div className="flex items-center justify-end gap-1">

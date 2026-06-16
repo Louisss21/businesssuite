@@ -46,13 +46,18 @@ export const leadService = {
   },
 
   async update(id: string, input: unknown) {
-    await this.getById(id);
+    const existing = await this.getById(id);
     const d = leadUpdateSchema.parse(input);
+    // A1: Übergang nach CONTACTED setzt contactedAt und startet den
+    // Wiedervorlage-Zyklus neu (Flag zurück), sonst beide Felder unberührt.
+    const enteringContacted = d.status === "CONTACTED" && existing.status !== "CONTACTED";
     return prisma.lead.update({
       where: { id },
       data: {
         title: d.title,
         status: d.status,
+        contactedAt: enteringContacted ? new Date() : undefined,
+        followupTaskCreated: enteringContacted ? false : undefined,
         notes: d.notes === undefined ? undefined : orNull(d.notes),
         firstName: d.firstName === undefined ? undefined : orNull(d.firstName),
         lastName: d.lastName === undefined ? undefined : orNull(d.lastName),
@@ -131,7 +136,9 @@ export const leadService = {
       await prisma.lead.create({
         data: {
           title,
-          status: "NEW",
+          // A1.1: Importierte Leads gelten sofort als kontaktiert.
+          status: "CONTACTED",
+          contactedAt: new Date(),
           email: email || null,
           firstName: orNull(r.firstName),
           lastName: orNull(r.lastName),

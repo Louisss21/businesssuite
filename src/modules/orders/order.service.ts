@@ -87,6 +87,7 @@ export const orderService = {
         return tx.order.update({
           where: { id },
           data: {
+            customerId: data.customerId,
             status: data.status,
             notes: data.notes,
             netTotal: totals.netTotal,
@@ -101,7 +102,7 @@ export const orderService = {
 
     return prisma.order.update({
       where: { id },
-      data: { status: data.status, notes: data.notes },
+      data: { customerId: data.customerId, status: data.status, notes: data.notes },
       include: { items: true, customer: true },
     });
   },

@@ -23,6 +23,7 @@ export const orderCreateSchema = z.object({
 });
 
 export const orderUpdateSchema = z.object({
+  customerId: z.string().cuid().optional(),
   status: z.enum(orderStatuses).optional(),
   notes: z.string().trim().optional(),
   items: z.array(orderItemSchema).optional(),

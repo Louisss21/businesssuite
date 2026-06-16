@@ -23,6 +23,16 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
 }
 
+// A5.1: vollständiges Speichern (Felder + Positionen) via PUT
+export async function PUT(req: NextRequest, { params }: Ctx) {
+  try {
+    await requireUser();
+    return ok(await orderService.update(params.id, await req.json()));
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
   try {
     await requireUser();

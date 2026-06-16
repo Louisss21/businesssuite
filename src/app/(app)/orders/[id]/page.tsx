@@ -1,23 +1,51 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, PageHeader, Table, Th, Td, Badge, LinkButton } from "@/components/ui";
-import { formatEUR } from "@/lib/money";
+import { Card, PageHeader, Badge, LinkButton } from "@/components/ui";
 import { orderService } from "@/modules/orders/order.service";
-import { displayName } from "@/modules/crm/customer.service";
+import { customerService, displayName } from "@/modules/crm/customer.service";
+import { settingsService } from "@/modules/settings/settings.service";
+import { productService } from "@/modules/products/product.service";
 import { OrderActions } from "./OrderActions";
+import { OrderForm } from "../OrderForm";
 
 export const dynamic = "force-dynamic";
+
+const PDF_DOCS = [
+  { type: "confirmation", label: "Auftragsbestätigung" },
+  { type: "deliverynote", label: "Lieferschein" },
+  { type: "quote", label: "Angebot" },
+] as const;
 
 export default async function OrderDetailPage({ params }: { params: { id: string } }) {
   const order = await orderService.getById(params.id).catch(() => null);
   if (!order) notFound();
+
+  const [customers, settings, products] = await Promise.all([
+    customerService.list(),
+    settingsService.get(),
+    productService.listActiveSimple(),
+  ]);
+  const options = customers.map((c) => ({ id: c.id, name: displayName(c) }));
 
   return (
     <>
       <PageHeader
         title={order.orderNumber}
         subtitle={displayName(order.customer)}
-        action={<LinkButton href="/orders" variant="ghost">← Zurück</LinkButton>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            {PDF_DOCS.map((d) => (
+              <a
+                key={d.type}
+                href={`/api/orders/${order.id}/pdf?type=${d.type}`}
+                className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                ⬇ {d.label}
+              </a>
+            ))}
+            <LinkButton href="/orders" variant="ghost">← Zurück</LinkButton>
+          </div>
+        }
       />
 
       <Card className="mb-6 flex items-center justify-between p-4">
@@ -42,40 +70,24 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         </p>
       )}
 
-      <Table>
-        <thead>
-          <tr>
-            <Th>Produkt</Th>
-            <Th className="text-right">Menge</Th>
-            <Th className="text-right">Einzelpreis</Th>
-            <Th className="text-right">MwSt</Th>
-            <Th className="text-right">Netto</Th>
-            <Th className="text-right">Brutto</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {order.items.map((it) => (
-            <tr key={it.id}>
-              <Td>{it.productName}</Td>
-              <Td className="text-right">{String(it.quantity)}</Td>
-              <Td className="text-right">{formatEUR(it.unitPrice)}</Td>
-              <Td className="text-right">{String(it.taxRate)}%</Td>
-              <Td className="text-right">{formatEUR(it.netAmount)}</Td>
-              <Td className="text-right">{formatEUR(it.grossAmount)}</Td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="font-semibold">
-            <Td className="text-right" >Summe</Td>
-            <Td></Td>
-            <Td></Td>
-            <Td></Td>
-            <Td className="text-right">{formatEUR(order.netTotal)}</Td>
-            <Td className="text-right">{formatEUR(order.grossTotal)}</Td>
-          </tr>
-        </tfoot>
-      </Table>
+      <OrderForm
+        customers={options}
+        products={products}
+        defaultTaxRate={Number(settings.defaultTaxRate)}
+        hasInvoice={!!order.invoice}
+        order={{
+          id: order.id,
+          customerId: order.customerId,
+          status: order.status,
+          notes: order.notes ?? "",
+          items: order.items.map((it) => ({
+            productName: it.productName,
+            quantity: Number(it.quantity),
+            unitPrice: Number(it.unitPrice),
+            taxRate: Number(it.taxRate),
+          })),
+        }}
+      />
     </>
   );
 }

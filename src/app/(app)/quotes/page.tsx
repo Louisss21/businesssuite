@@ -1,13 +1,34 @@
 import Link from "next/link";
-import { PageHeader, Table, Th, Td, Badge, Empty, LinkButton } from "@/components/ui";
+import { PageHeader, LinkButton } from "@/components/ui";
 import { formatEUR } from "@/lib/money";
 import { quoteService } from "@/modules/quotes/quote.service";
 import { displayName } from "@/modules/crm/customer.service";
-import { DeleteButton } from "@/components/DeleteButton";
+import { BulkTable, type BulkColumn, type BulkRow } from "@/components/bulk/BulkTable";
+import type { BulkField } from "@/components/bulk/BulkUI";
 
 export const dynamic = "force-dynamic";
 
 const FILTERS = ["", "DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"];
+
+const COLUMNS: BulkColumn[] = [
+  { key: "number", header: "Nummer", type: "link", hrefBase: "/quotes/" },
+  { key: "customer", header: "Kunde" },
+  { key: "validUntil", header: "Gültig bis" },
+  { key: "status", header: "Status", type: "badge" },
+  { key: "gross", header: "Brutto", align: "right" },
+];
+
+const CHANGE_FIELDS: BulkField[] = [
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"].map((s) => ({
+      value: s,
+      label: s,
+    })),
+  },
+];
 
 export default async function QuotesPage({
   searchParams,
@@ -15,6 +36,15 @@ export default async function QuotesPage({
   searchParams: { status?: string };
 }) {
   const quotes = await quoteService.list({ status: searchParams.status });
+
+  const rows: BulkRow[] = quotes.map((q) => ({
+    id: q.id,
+    number: q.number,
+    customer: displayName(q.customer),
+    validUntil: q.validUntil ? q.validUntil.toLocaleDateString("de-DE") : null,
+    status: q.status,
+    gross: formatEUR(q.grossTotal),
+  }));
 
   return (
     <>
@@ -40,59 +70,21 @@ export default async function QuotesPage({
         ))}
       </div>
 
-      <Table>
-        <thead>
-          <tr>
-            <Th>Nummer</Th>
-            <Th>Kunde</Th>
-            <Th>Gültig bis</Th>
-            <Th>Status</Th>
-            <Th className="text-right">Brutto</Th>
-            <Th className="text-right">Aktionen</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {quotes.map((q) => (
-            <tr key={q.id}>
-              <Td>
-                <Link href={`/quotes/${q.id}`} className="font-medium text-brand-700">
-                  {q.number}
-                </Link>
-              </Td>
-              <Td>{displayName(q.customer)}</Td>
-              <Td>{q.validUntil ? q.validUntil.toLocaleDateString("de-DE") : "—"}</Td>
-              <Td>
-                <Badge value={q.status} />
-              </Td>
-              <Td className="text-right">{formatEUR(q.grossTotal)}</Td>
-              <Td className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <a
-                    href={`/api/quotes/${q.id}/pdf`}
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"
-                    title="PDF herunterladen"
-                  >
-                    ⬇
-                  </a>
-                  <Link
-                    href={`/quotes/${q.id}`}
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"
-                    title="Bearbeiten"
-                  >
-                    ✎
-                  </Link>
-                  <DeleteButton
-                    url={`/api/quotes/${q.id}`}
-                    confirmText={`Angebot ${q.number} wirklich löschen?`}
-                    iconOnly
-                  />
-                </div>
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-      {quotes.length === 0 && <Empty>Noch keine Angebote.</Empty>}
+      <BulkTable
+        rows={rows}
+        columns={COLUMNS}
+        editHrefBase="/quotes/"
+        deleteUrlBase="/api/quotes/"
+        labelKey="number"
+        deleteNoun="Angebot(e)"
+        rowExtraLinks={[
+          { hrefBase: "/api/quotes/", hrefSuffix: "/pdf", icon: "⬇", title: "PDF herunterladen", newTab: true },
+        ]}
+        bulkDeleteUrl="/api/quotes/bulk-delete"
+        bulkUpdateUrl="/api/quotes/bulk-update"
+        changeFields={CHANGE_FIELDS}
+        emptyText="Noch keine Angebote."
+      />
     </>
   );
 }

@@ -137,6 +137,39 @@ export const invoiceService = {
     return prisma.invoice.delete({ where: { id } });
   },
 
+  /** B2: Rechnungen löschen – bezahlte werden übersprungen (Storno statt Löschen). */
+  async bulkDelete(ids: string[]) {
+    const invs = await prisma.invoice.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, status: true },
+    });
+    const deletable = invs.filter((i) => i.status !== "PAID").map((i) => i.id);
+    const skipped = invs
+      .filter((i) => i.status === "PAID")
+      .map((i) => ({ id: i.id, reason: "bezahlt – bitte stornieren" }));
+    let deleted = 0;
+    if (deletable.length) {
+      const res = await prisma.invoice.deleteMany({ where: { id: { in: deletable } } });
+      deleted = res.count;
+    }
+    return { deleted, skipped };
+  },
+
+  /** B3: Massenstatus für Rechnungen (paidAt wird bei PAID gesetzt). */
+  async bulkUpdate(ids: string[], changes: { status?: string }) {
+    if (!changes.status) return { updated: 0 };
+    const valid = ["OPEN", "PAID", "OVERDUE", "CANCELLED"];
+    if (!valid.includes(changes.status)) throw new AppError("Ungültiger Status");
+    const res = await prisma.invoice.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        status: changes.status as never,
+        paidAt: changes.status === "PAID" ? new Date() : undefined,
+      },
+    });
+    return { updated: res.count };
+  },
+
   /** OPEN-Rechnungen mit überschrittenem Fälligkeitsdatum auf OVERDUE setzen. */
   markOverdue() {
     return prisma.invoice.updateMany({

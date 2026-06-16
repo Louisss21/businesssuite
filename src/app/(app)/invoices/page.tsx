@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { PageHeader, Table, Th, Td, Badge, Empty } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { formatEUR } from "@/lib/money";
 import { invoiceService } from "@/modules/invoices/invoice.service";
 import { displayName } from "@/modules/crm/customer.service";
-import { InvoiceStatusSelect } from "./InvoiceStatusSelect";
-import { DeleteButton } from "@/components/DeleteButton";
+import { InvoicesTable, type InvoiceRow } from "./InvoicesTable";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +15,17 @@ export default async function InvoicesPage({
   // Überfällige Rechnungen automatisch markieren (kein Cron -> lazy beim Aufruf)
   await invoiceService.markOverdue();
   const invoices = await invoiceService.list({ status: searchParams.status });
+
+  const rows: InvoiceRow[] = invoices.map((inv) => ({
+    id: inv.id,
+    invoiceNumber: inv.invoiceNumber,
+    customer: displayName(inv.customer),
+    issueDate: inv.issueDate.toLocaleDateString("de-DE"),
+    dueDate: inv.dueDate.toLocaleDateString("de-DE"),
+    period: inv.accountingPeriod.label,
+    gross: formatEUR(inv.grossTotal),
+    status: inv.status,
+  }));
 
   return (
     <>
@@ -37,58 +47,7 @@ export default async function InvoicesPage({
         ))}
       </div>
 
-      <Table>
-        <thead>
-          <tr>
-            <Th>Nummer</Th>
-            <Th>Kunde</Th>
-            <Th>Datum</Th>
-            <Th>Fällig</Th>
-            <Th>Periode</Th>
-            <Th className="text-right">Brutto</Th>
-            <Th>Status</Th>
-            <Th className="text-right">Aktionen</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoices.map((inv) => (
-            <tr key={inv.id}>
-              <Td>
-                <Link href={`/invoices/${inv.id}`} className="font-medium text-brand-700">
-                  {inv.invoiceNumber}
-                </Link>
-              </Td>
-              <Td>{displayName(inv.customer)}</Td>
-              <Td>{inv.issueDate.toLocaleDateString("de-DE")}</Td>
-              <Td>{inv.dueDate.toLocaleDateString("de-DE")}</Td>
-              <Td className="text-slate-500">{inv.accountingPeriod.label}</Td>
-              <Td className="text-right">{formatEUR(inv.grossTotal)}</Td>
-              <Td>
-                <InvoiceStatusSelect id={inv.id} status={inv.status} />
-              </Td>
-              <Td className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <Link
-                    href={`/invoices/${inv.id}`}
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"
-                    title="Ansehen"
-                  >
-                    ✎
-                  </Link>
-                  <DeleteButton
-                    url={`/api/invoices/${inv.id}`}
-                    confirmText={`Rechnung ${inv.invoiceNumber} wirklich löschen? (Hinweis: Rechnungen sollten i. d. R. storniert statt gelöscht werden.)`}
-                    iconOnly
-                  />
-                </div>
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-      {invoices.length === 0 && (
-        <Empty>Keine Rechnungen. Erstelle eine aus einer Bestellung.</Empty>
-      )}
+      <InvoicesTable rows={rows} />
     </>
   );
 }

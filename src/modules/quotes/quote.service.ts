@@ -6,6 +6,7 @@ import { orderService } from "@/modules/orders/order.service";
 import {
   computeQuoteItem,
   quoteCreateSchema,
+  quoteStatuses,
   quoteUpdateSchema,
   type QuoteItemInput,
 } from "./quote.schema";
@@ -142,6 +143,24 @@ export const quoteService = {
 
   delete(id: string) {
     return prisma.quote.delete({ where: { id } });
+  },
+
+  /** B2: Angebote löschen (keine FK-Schutzregeln). */
+  async bulkDelete(ids: string[]) {
+    const res = await prisma.quote.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: res.count, skipped: [] as { id: string; reason: string }[] };
+  },
+
+  /** B3: Massenstatus für Angebote. */
+  async bulkUpdate(ids: string[], changes: { status?: string }) {
+    const data: Record<string, unknown> = {};
+    if (changes.status) {
+      if (!quoteStatuses.includes(changes.status as never)) throw new AppError("Ungültiger Status");
+      data.status = changes.status;
+    }
+    if (Object.keys(data).length === 0) return { updated: 0 };
+    const res = await prisma.quote.updateMany({ where: { id: { in: ids } }, data });
+    return { updated: res.count };
   },
 
   /** Angebot in einen Auftrag (Order) umwandeln. Rabatt wird in den Einzelpreis eingerechnet. */

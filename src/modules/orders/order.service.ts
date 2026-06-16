@@ -5,6 +5,7 @@ import { nextNumber } from "@/modules/shared/numbering.service";
 import { settingsService } from "@/modules/settings/settings.service";
 import {
   orderCreateSchema,
+  orderStatuses,
   orderUpdateSchema,
   type OrderItemInput,
 } from "./order.schema";
@@ -121,5 +122,35 @@ export const orderService = {
     }
     // OrderItems werden per Cascade mitgelöscht
     return prisma.order.delete({ where: { id } });
+  },
+
+  /** B2: Bestellungen löschen – mit Rechnung verknüpfte werden übersprungen. */
+  async bulkDelete(ids: string[]) {
+    const orders = await prisma.order.findMany({
+      where: { id: { in: ids } },
+      include: { invoice: { select: { id: true } } },
+    });
+    const deletable = orders.filter((o) => !o.invoice).map((o) => o.id);
+    const skipped = orders
+      .filter((o) => o.invoice)
+      .map((o) => ({ id: o.id, reason: "Rechnung vorhanden" }));
+    let deleted = 0;
+    if (deletable.length) {
+      const res = await prisma.order.deleteMany({ where: { id: { in: deletable } } });
+      deleted = res.count;
+    }
+    return { deleted, skipped };
+  },
+
+  /** B3: Massenstatus für Bestellungen. */
+  async bulkUpdate(ids: string[], changes: { status?: string }) {
+    const data: Record<string, unknown> = {};
+    if (changes.status) {
+      if (!orderStatuses.includes(changes.status as never)) throw new AppError("Ungültiger Status");
+      data.status = changes.status;
+    }
+    if (Object.keys(data).length === 0) return { updated: 0 };
+    const res = await prisma.order.updateMany({ where: { id: { in: ids } }, data });
+    return { updated: res.count };
   },
 };

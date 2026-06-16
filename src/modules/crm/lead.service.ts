@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { AppError, notFound } from "@/lib/http";
-import { leadCreateSchema, leadUpdateSchema, splitTags } from "./lead.schema";
+import { leadCreateSchema, leadStatuses, leadUpdateSchema, splitTags } from "./lead.schema";
 
 const orNull = (v?: string | null) => (v ? v : null);
 
@@ -77,6 +77,57 @@ export const leadService = {
 
   delete(id: string) {
     return prisma.lead.delete({ where: { id } });
+  },
+
+  /** B2: Mehrere Leads löschen (keine FK-Schutzregeln nötig). */
+  async bulkDelete(ids: string[]) {
+    const res = await prisma.lead.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: res.count, skipped: [] as { id: string; reason: string }[] };
+  },
+
+  /** B3: Massenbearbeitung (Status / Zuweisung / Tag add/remove). */
+  async bulkUpdate(
+    ids: string[],
+    changes: { status?: string; assignedUserId?: string; addTag?: string; removeTag?: string },
+  ) {
+    const data: Record<string, unknown> = {};
+    if (changes.status) {
+      if (!leadStatuses.includes(changes.status as never)) {
+        throw new AppError("Ungültiger Status");
+      }
+      data.status = changes.status;
+      if (changes.status === "CONTACTED") {
+        data.contactedAt = new Date();
+        data.followupTaskCreated = false;
+      }
+    }
+    if (changes.assignedUserId !== undefined) {
+      data.assignedUserId = changes.assignedUserId || null;
+    }
+
+    let updated = 0;
+    if (Object.keys(data).length > 0) {
+      const res = await prisma.lead.updateMany({ where: { id: { in: ids } }, data });
+      updated = res.count;
+    }
+
+    if (changes.addTag || changes.removeTag) {
+      const rows = await prisma.lead.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, tags: true },
+      });
+      await prisma.$transaction(
+        rows.map((r) => {
+          let tags = r.tags;
+          if (changes.addTag && !tags.includes(changes.addTag)) tags = [...tags, changes.addTag];
+          if (changes.removeTag) tags = tags.filter((t) => t !== changes.removeTag);
+          return prisma.lead.update({ where: { id: r.id }, data: { tags } });
+        }),
+      );
+      updated = Math.max(updated, rows.length);
+    }
+
+    return { updated };
   },
 
   /**

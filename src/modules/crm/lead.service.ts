@@ -187,4 +187,68 @@ export const leadService = {
       return customer;
     });
   },
+
+  /**
+   * A4: Wiedervorlage-Automatik. Für CONTACTED-Leads, deren Kontaktaufnahme
+   * >= 14 Tage zurückliegt und für die noch keine Follow-up-Aufgabe besteht,
+   * wird eine Telefon-Aufgabe angelegt. Idempotent über followupTaskCreated +
+   * Existenzprüfung. Wechselt der Lead vorher den Status, greift der Filter nicht.
+   */
+  async createDueFollowups() {
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - 14);
+
+    const due = await prisma.lead.findMany({
+      where: {
+        status: "CONTACTED",
+        followupTaskCreated: false,
+        contactedAt: { not: null, lte: cutoff },
+      },
+    });
+    if (due.length === 0) return { scanned: 0, created: 0 };
+
+    const admin = await prisma.user.findFirst({
+      where: { role: "ADMIN", active: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    let created = 0;
+    for (const lead of due) {
+      const name =
+        lead.title ||
+        [lead.firstName, lead.lastName].filter(Boolean).join(" ") ||
+        lead.company ||
+        lead.email ||
+        "Lead";
+      const dueAt = new Date(lead.contactedAt as Date);
+      dueAt.setDate(dueAt.getDate() + 14);
+
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.task.findFirst({
+          where: { relatedLeadId: lead.id, title: { startsWith: "Lead erneut kontaktieren" } },
+        });
+        if (!existing) {
+          await tx.task.create({
+            data: {
+              title: `Lead erneut kontaktieren: ${name}`,
+              description:
+                "Methode: Telefon. Automatische Wiedervorlage 14 Tage nach Kontaktaufnahme.",
+              assignedToId: lead.assignedUserId ?? admin?.id ?? null,
+              relatedLeadId: lead.id,
+              dueAt,
+              priority: "MEDIUM",
+              status: "OPEN",
+            },
+          });
+          created++;
+        }
+        await tx.lead.update({
+          where: { id: lead.id },
+          data: { followupTaskCreated: true },
+        });
+      });
+    }
+    return { scanned: due.length, created };
+  },
 };

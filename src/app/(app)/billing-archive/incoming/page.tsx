@@ -6,6 +6,7 @@ import { incomingInvoiceService } from "@/modules/billing-archive/incoming-invoi
 import { DeleteButton } from "@/components/DeleteButton";
 import { IncomingInvoiceUpload } from "./IncomingInvoiceUpload";
 import { IncomingStatusToggle } from "./IncomingStatusToggle";
+import { ScanInboxButton } from "./ScanInboxButton";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,12 @@ export default async function IncomingInvoicesPage({ searchParams }: { searchPar
       <PageHeader
         title="Eingangsrechnungen"
         subtitle="Lieferantenrechnungen · Jahr → Quartal → Monat"
-        action={<LinkButton href="/billing-archive" variant="ghost">← Rechnungsarchiv</LinkButton>}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ScanInboxButton />
+            <LinkButton href="/billing-archive" variant="ghost">← Rechnungsarchiv</LinkButton>
+          </div>
+        }
       />
 
       <IncomingInvoiceUpload />

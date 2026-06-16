@@ -380,6 +380,7 @@ model IncomingInvoice {
   status       String   @default("OPEN") // OPEN / PAID
   fileUrl      String
   source       String   @default("MANUAL") // MANUAL / EMAIL
+  sourceRef    String?   @unique // z. B. Gmail-Message-ID (Dedupe beim Import)
   createdAt    DateTime @default(now())
 
   @@index([invoiceDate])

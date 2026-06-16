@@ -63,7 +63,12 @@ export const incomingInvoiceService = {
     });
   },
 
-  create(input: IncomingInvoiceInput, fileUrl: string, source: "MANUAL" | "EMAIL" = "MANUAL") {
+  create(
+    input: IncomingInvoiceInput,
+    fileUrl: string,
+    source: "MANUAL" | "EMAIL" = "MANUAL",
+    sourceRef?: string,
+  ) {
     return prisma.incomingInvoice.create({
       data: {
         supplierName: input.supplierName,
@@ -75,8 +80,15 @@ export const incomingInvoiceService = {
         status: input.status,
         fileUrl,
         source,
+        sourceRef: sourceRef ?? null,
       },
     });
+  },
+
+  /** Dedupe-Prüfung für den automatischen Import (A6.2). */
+  async existsBySourceRef(sourceRef: string) {
+    const row = await prisma.incomingInvoice.findUnique({ where: { sourceRef } });
+    return !!row;
   },
 
   async setStatus(id: string, status: "OPEN" | "PAID") {

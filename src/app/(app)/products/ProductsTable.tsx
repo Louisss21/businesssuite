@@ -91,6 +91,23 @@ export function ProductsTable({ products }: { products: ProductRow[] }) {
       columns={columns}
       filterText={(p) => `${p.sku} ${p.name} ${p.category}`}
       empty="Noch keine Produkte angelegt."
+      getRowId={(p) => p.id}
+      bulk={{
+        deleteUrl: "/api/products/bulk-delete",
+        updateUrl: "/api/products/bulk-update",
+        deleteNoun: "Produkt(e)",
+        changeFields: [
+          {
+            key: "active",
+            label: "Aktiv-Status",
+            type: "select",
+            options: [
+              { value: "true", label: "Aktiv" },
+              { value: "false", label: "Inaktiv" },
+            ],
+          },
+        ],
+      }}
     />
   );
 }

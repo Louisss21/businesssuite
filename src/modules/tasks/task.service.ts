@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { notFound } from "@/lib/http";
+import { AppError, notFound } from "@/lib/http";
 import { displayName } from "@/modules/crm/customer.service";
 import { taskCreateSchema, taskUpdateSchema } from "./task.schema";
 
@@ -86,6 +86,34 @@ export const taskService = {
 
   delete(id: string) {
     return prisma.task.delete({ where: { id } });
+  },
+
+  /** B2: Aufgaben löschen (keine FK-Schutzregeln). */
+  async bulkDelete(ids: string[]) {
+    const res = await prisma.task.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: res.count, skipped: [] as { id: string; reason: string }[] };
+  },
+
+  /** B3: Status / Priorität / Zuweisung mehrerer Aufgaben setzen. */
+  async bulkUpdate(
+    ids: string[],
+    changes: { status?: string; priority?: string; assignedToId?: string },
+  ) {
+    const STATUS = ["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"];
+    const PRIO = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+    const data: Record<string, unknown> = {};
+    if (changes.status) {
+      if (!STATUS.includes(changes.status)) throw new AppError("Ungültiger Status");
+      data.status = changes.status;
+    }
+    if (changes.priority) {
+      if (!PRIO.includes(changes.priority)) throw new AppError("Ungültige Priorität");
+      data.priority = changes.priority;
+    }
+    if (changes.assignedToId !== undefined) data.assignedToId = changes.assignedToId || null;
+    if (Object.keys(data).length === 0) return { updated: 0 };
+    const res = await prisma.task.updateMany({ where: { id: { in: ids } }, data });
+    return { updated: res.count };
   },
 
   /** Offene Aufgaben, die heute fällig oder überfällig sind (Dashboard). */

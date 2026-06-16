@@ -64,6 +64,20 @@ export const componentService = {
     });
   },
 
+  /** B3: Mindestbestand für mehrere Bauteile gleichzeitig setzen (kein Löschen im Lager). */
+  async bulkUpdate(ids: string[], changes: { minStock?: number | string }) {
+    if (changes.minStock === undefined || changes.minStock === "") return { updated: 0 };
+    const minStock = Number(changes.minStock);
+    if (!Number.isInteger(minStock) || minStock < 0) {
+      throw new AppError("Mindestbestand muss eine ganze Zahl ≥ 0 sein.", 422);
+    }
+    const res = await prisma.component.updateMany({
+      where: { id: { in: ids } },
+      data: { minStock },
+    });
+    return { updated: res.count };
+  },
+
   /** Manueller Bestandseingang/-korrektur (delta>0 = Zugang, delta<0 = Abgang). */
   async adjustStock(id: string, input: unknown) {
     const c = await this.getById(id);

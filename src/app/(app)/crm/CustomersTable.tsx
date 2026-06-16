@@ -55,6 +55,20 @@ export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
       columns={columns}
       filterText={(c) => `${c.name} ${c.email} ${c.typeLabel}`}
       empty="Noch keine Kunden angelegt."
+      getRowId={(c) => c.id}
+      bulk={{
+        deleteUrl: "/api/customers/bulk-delete",
+        updateUrl: "/api/customers/bulk-update",
+        deleteNoun: "Kunde(n)",
+        changeFields: [
+          {
+            key: "classification",
+            label: "Klassifizierung",
+            type: "select",
+            options: ["A-Kunde", "B-Kunde", "C-Kunde", "VIP"].map((v) => ({ value: v, label: v })),
+          },
+        ],
+      }}
     />
   );
 }

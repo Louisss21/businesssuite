@@ -71,6 +71,35 @@ export const customerService = {
     const data = contactSchema.parse(input);
     return prisma.contactPerson.create({ data: { ...data, customerId } });
   },
+
+  /** B2: Kunden löschen – mit Bestellungen/Rechnungen/Angeboten verknüpfte überspringen. */
+  async bulkDelete(ids: string[]) {
+    const rows = await prisma.customer.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, _count: { select: { orders: true, invoices: true, quotes: true } } },
+    });
+    const deletable = rows
+      .filter((c) => c._count.orders === 0 && c._count.invoices === 0 && c._count.quotes === 0)
+      .map((c) => c.id);
+    const skipped = rows
+      .filter((c) => c._count.orders > 0 || c._count.invoices > 0 || c._count.quotes > 0)
+      .map((c) => ({ id: c.id, reason: "hat Bestellungen/Rechnungen/Angebote" }));
+    let deleted = 0;
+    if (deletable.length) {
+      const res = await prisma.customer.deleteMany({ where: { id: { in: deletable } } });
+      deleted = res.count;
+    }
+    return { deleted, skipped };
+  },
+
+  /** B3: Klassifizierung mehrerer Kunden setzen. */
+  async bulkUpdate(ids: string[], changes: { classification?: string }) {
+    const data: Record<string, unknown> = {};
+    if (changes.classification) data.classification = changes.classification;
+    if (Object.keys(data).length === 0) return { updated: 0 };
+    const res = await prisma.customer.updateMany({ where: { id: { in: ids } }, data });
+    return { updated: res.count };
+  },
 };
 
 export const displayName = (c: {

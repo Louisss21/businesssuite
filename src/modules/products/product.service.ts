@@ -103,4 +103,32 @@ export const productService = {
   delete(id: string) {
     return prisma.product.delete({ where: { id } });
   },
+
+  /** B2: Produkte löschen – als Fertigerzeugnis in der Produktion referenzierte überspringen. */
+  async bulkDelete(ids: string[]) {
+    const rows = await prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, _count: { select: { tableModels: true } } },
+    });
+    const deletable = rows.filter((p) => p._count.tableModels === 0).map((p) => p.id);
+    const skipped = rows
+      .filter((p) => p._count.tableModels > 0)
+      .map((p) => ({ id: p.id, reason: "in Produktion referenziert" }));
+    let deleted = 0;
+    if (deletable.length) {
+      const res = await prisma.product.deleteMany({ where: { id: { in: deletable } } });
+      deleted = res.count;
+    }
+    return { deleted, skipped };
+  },
+
+  /** B3: Aktiv-Status / Kategorie mehrerer Produkte setzen. */
+  async bulkUpdate(ids: string[], changes: { active?: string; categoryId?: string }) {
+    const data: Record<string, unknown> = {};
+    if (changes.active !== undefined) data.active = changes.active === "true";
+    if (changes.categoryId) data.categoryId = changes.categoryId;
+    if (Object.keys(data).length === 0) return { updated: 0 };
+    const res = await prisma.product.updateMany({ where: { id: { in: ids } }, data });
+    return { updated: res.count };
+  },
 };

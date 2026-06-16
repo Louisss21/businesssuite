@@ -114,6 +114,25 @@ export const campaignService = {
     return prisma.campaign.delete({ where: { id } });
   },
 
+  /** B2: Kampagnen löschen (Empfänger werden per Cascade mitgelöscht). */
+  async bulkDelete(ids: string[]) {
+    const res = await prisma.campaign.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: res.count, skipped: [] as { id: string; reason: string }[] };
+  },
+
+  /** B3: Status mehrerer Kampagnen setzen. */
+  async bulkUpdate(ids: string[], changes: { status?: string }) {
+    const STATUS = ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"];
+    const data: Record<string, unknown> = {};
+    if (changes.status) {
+      if (!STATUS.includes(changes.status)) throw new AppError("Ungültiger Status");
+      data.status = changes.status;
+    }
+    if (Object.keys(data).length === 0) return { updated: 0 };
+    const res = await prisma.campaign.updateMany({ where: { id: { in: ids } }, data });
+    return { updated: res.count };
+  },
+
   /** Vorschau: wie viele Kunden trifft der Filter? */
   previewCount(input: unknown) {
     const f = targetFilterSchema.parse(input);

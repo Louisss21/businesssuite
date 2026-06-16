@@ -1,12 +1,41 @@
-import Link from "next/link";
-import { PageHeader, Table, Th, Td, Badge, Empty, LinkButton } from "@/components/ui";
+import { PageHeader, LinkButton } from "@/components/ui";
 import { campaignService } from "@/modules/campaigns/campaign.service";
-import { DeleteButton } from "@/components/DeleteButton";
+import { BulkTable, type BulkColumn, type BulkRow } from "@/components/bulk/BulkTable";
+import type { BulkField } from "@/components/bulk/BulkUI";
 
 export const dynamic = "force-dynamic";
 
+const COLUMNS: BulkColumn[] = [
+  { key: "name", header: "Name", type: "link", hrefBase: "/campaigns/" },
+  { key: "type", header: "Typ" },
+  { key: "status", header: "Status", type: "badge" },
+  { key: "zeitraum", header: "Zeitraum" },
+  { key: "recipients", header: "Empfänger", align: "right" },
+];
+
+const CHANGE_FIELDS: BulkField[] = [
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"].map((s) => ({ value: s, label: s })),
+  },
+];
+
 export default async function CampaignsPage() {
   const campaigns = await campaignService.list();
+
+  const rows: BulkRow[] = campaigns.map((c) => ({
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    status: c.status,
+    zeitraum:
+      (c.startDate ? c.startDate.toLocaleDateString("de-DE") : "—") +
+      (c.endDate ? ` – ${c.endDate.toLocaleDateString("de-DE")}` : ""),
+    recipients: c._count.recipients,
+  }));
+
   return (
     <>
       <PageHeader
@@ -14,53 +43,18 @@ export default async function CampaignsPage() {
         subtitle="Direktmarketing – Post, E-Mail, Telefon"
         action={<LinkButton href="/campaigns/new">+ Neue Kampagne</LinkButton>}
       />
-      <Table>
-        <thead>
-          <tr>
-            <Th>Name</Th>
-            <Th>Typ</Th>
-            <Th>Status</Th>
-            <Th>Zeitraum</Th>
-            <Th className="text-right">Empfänger</Th>
-            <Th className="text-right">Aktionen</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {campaigns.map((c) => (
-            <tr key={c.id}>
-              <Td>
-                <Link href={`/campaigns/${c.id}`} className="font-medium text-brand-700">
-                  {c.name}
-                </Link>
-              </Td>
-              <Td>{c.type}</Td>
-              <Td><Badge value={c.status} /></Td>
-              <Td className="text-slate-500">
-                {c.startDate ? c.startDate.toLocaleDateString("de-DE") : "—"}
-                {c.endDate ? ` – ${c.endDate.toLocaleDateString("de-DE")}` : ""}
-              </Td>
-              <Td className="text-right">{c._count.recipients}</Td>
-              <Td className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <Link
-                    href={`/campaigns/${c.id}`}
-                    className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"
-                    title="Öffnen"
-                  >
-                    ✎
-                  </Link>
-                  <DeleteButton
-                    url={`/api/campaigns/${c.id}`}
-                    confirmText={`Kampagne „${c.name}" wirklich löschen?`}
-                    iconOnly
-                  />
-                </div>
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-      {campaigns.length === 0 && <Empty>Noch keine Kampagnen.</Empty>}
+      <BulkTable
+        rows={rows}
+        columns={COLUMNS}
+        editHrefBase="/campaigns/"
+        deleteUrlBase="/api/campaigns/"
+        labelKey="name"
+        deleteNoun="Kampagne(n)"
+        bulkDeleteUrl="/api/campaigns/bulk-delete"
+        bulkUpdateUrl="/api/campaigns/bulk-update"
+        changeFields={CHANGE_FIELDS}
+        emptyText="Noch keine Kampagnen."
+      />
     </>
   );
 }

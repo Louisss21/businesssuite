@@ -5,7 +5,16 @@ import { NextRequest, NextResponse } from "next/server";
  * Session-Cookies und leitet sonst auf /login. Die kryptografische
  * Verifikation passiert serverseitig in getCurrentUser() (Node-Runtime).
  */
-const PUBLIC = ["/login", "/api/auth/login", "/api/health", "/api/debug/pdf-test"];
+// Öffentlich (kein Session-Cookie nötig): Login, Health, sowie Cron- und
+// Webhook-Endpunkte – diese authentifizieren sich selbst (CRON_SECRET bzw.
+// WooCommerce-HMAC) und werden von externen Systemen ohne Cookie aufgerufen.
+const PUBLIC = [
+  "/login",
+  "/api/auth/login",
+  "/api/health",
+  "/api/cron",
+  "/api/webhooks",
+];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

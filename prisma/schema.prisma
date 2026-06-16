@@ -242,6 +242,11 @@ model Order {
   status      OrderStatus @default(DRAFT)
   notes       String?
 
+  // Externe Herkunft (WooCommerce-Webhook): Idempotenz + Storno-Rückbuchung
+  externalId     String? @unique // z.B. WooCommerce-Order-ID
+  externalSource String? // "woocommerce"
+  stockReduced   Boolean @default(false) // ob Fertigerzeugnis-Bestand bereits abgebucht wurde
+
   // Summen (denormalisiert für schnelle Listen/Reports)
   netTotal   Decimal @default(0) @db.Decimal(12, 2)
   taxTotal   Decimal @default(0) @db.Decimal(12, 2)

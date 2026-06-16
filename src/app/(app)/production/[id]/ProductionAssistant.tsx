@@ -251,7 +251,7 @@ export function ProductionAssistant({
       {/* "Mehr erfahren"-Modal */}
       {showMore && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/50" onClick={() => setShowMore(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMore(false)} />
           <div className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-semibold text-slate-900">{step.title} – Mehr erfahren</h3>

@@ -121,32 +121,46 @@ export function Field({
   );
 }
 
+/**
+ * Sustable-Status: einzelne Akzentfarbe + dezenter rgba-Hintergrund derselben
+ * Farbe, Label in Geist Mono (uppercase). Status-Codes bleiben unverändert.
+ */
+const GREEN = "#34D399";
+const ORANGE = "#F07D00";
+const BLUE = "#60A5FA";
+const RED = "#F87171";
+const GREY = "#9A9AA2";
+
 const BADGE_COLORS: Record<string, string> = {
   // Lead
-  NEW: "bg-slate-100 text-slate-700",
-  CONTACTED: "bg-blue-100 text-blue-700",
-  QUALIFIED: "bg-violet-100 text-violet-700",
-  WON: "bg-green-100 text-green-700",
-  LOST: "bg-red-100 text-red-700",
+  NEW: GREY,
+  CONTACTED: BLUE,
+  QUALIFIED: BLUE,
+  WON: GREEN,
+  LOST: RED,
   // Order
-  DRAFT: "bg-slate-100 text-slate-700",
-  CONFIRMED: "bg-blue-100 text-blue-700",
-  IN_PROGRESS: "bg-amber-100 text-amber-700",
-  COMPLETED: "bg-green-100 text-green-700",
-  CANCELLED: "bg-slate-200 text-slate-600", // Order- & Invoice-Storno
+  DRAFT: GREY,
+  CONFIRMED: ORANGE,
+  IN_PROGRESS: ORANGE,
+  COMPLETED: GREEN,
+  CANCELLED: GREY, // Order- & Invoice-Storno
   // Invoice
-  OPEN: "bg-amber-100 text-amber-700",
-  PAID: "bg-green-100 text-green-700",
-  OVERDUE: "bg-red-100 text-red-700",
+  OPEN: ORANGE,
+  PAID: GREEN,
+  OVERDUE: RED,
 };
 
+function hexToRgba(hex: string, alpha: number) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 export function Badge({ value }: { value: string }) {
+  const color = BADGE_COLORS[value] ?? GREY;
   return (
     <span
-      className={cx(
-        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-        BADGE_COLORS[value] ?? "bg-slate-100 text-slate-700",
-      )}
+      className="inline-flex items-center rounded-badge px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider"
+      style={{ color, backgroundColor: hexToRgba(color, 0.14) }}
     >
       {value}
     </span>
@@ -168,7 +182,7 @@ export function Th({ children, className }: ComponentProps<"th">) {
   return (
     <th
       className={cx(
-        "border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500",
+        "border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-left font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500",
         className,
       )}
     >

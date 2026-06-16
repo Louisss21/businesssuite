@@ -72,7 +72,7 @@ export function SearchPalette() {
 
       {open && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-24">
-          <div className="absolute inset-0 bg-slate-900/40" onClick={() => setOpen(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl">
             <input
               ref={inputRef}

@@ -42,6 +42,32 @@ function visibleFor(role: Role): NavItem[] {
   return NAV.filter((i) => !i.roles || i.roles.includes(role));
 }
 
+/** Sustable Horizon-Logo + Wortmarke. */
+function Logo() {
+  return (
+    <span className="flex items-center gap-2.5">
+      <svg viewBox="0 0 96 96" className="h-6 w-6" aria-hidden>
+        <path
+          d="M 22.96 41 A 26 26 0 0 1 73.04 41"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="9"
+        />
+        <path
+          d="M 22.96 55 A 26 26 0 0 0 73.04 55"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="9"
+        />
+        <rect x="12" y="43.5" width="72" height="9" fill="#F07D00" />
+      </svg>
+      <span className="text-base font-semibold tracking-tight text-slate-900">
+        sustable
+      </span>
+    </span>
+  );
+}
+
 export function AppShell({
   user,
   children,
@@ -99,7 +125,9 @@ export function AppShell({
     <div className="flex h-screen overflow-hidden">
       {/* Desktop-Sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
-        <div className="px-5 py-5 text-lg font-bold text-brand-700">Business Suite</div>
+        <div className="px-5 py-5">
+          <Logo />
+        </div>
         {NavList}
         {Footer}
       </aside>
@@ -108,13 +136,13 @@ export function AppShell({
       {open && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div
-            className="absolute inset-0 bg-slate-900/40"
+            className="absolute inset-0 bg-black/40"
             onClick={() => setOpen(false)}
             aria-hidden
           />
           <aside className="absolute left-0 top-0 flex h-full w-64 flex-col border-r border-slate-200 bg-white shadow-xl">
             <div className="flex items-center justify-between px-5 py-4">
-              <span className="text-lg font-bold text-brand-700">Business Suite</span>
+              <Logo />
               <button
                 onClick={() => setOpen(false)}
                 className="rounded-md p-1 text-slate-500 hover:bg-slate-100"
@@ -132,7 +160,10 @@ export function AppShell({
       {/* Hauptbereich */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Topbar (mobil: Hamburger + Titel; immer: globale Suche) */}
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <header
+          className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 backdrop-blur-[14px]"
+          style={{ backgroundColor: "rgba(0,0,0,0.72)" }}
+        >
           <div className="flex items-center gap-3">
             <button
               onClick={() => setOpen(true)}
@@ -141,7 +172,9 @@ export function AppShell({
             >
               <span className="text-xl">☰</span>
             </button>
-            <span className="font-bold text-brand-700 md:hidden">Business Suite</span>
+            <span className="md:hidden">
+              <Logo />
+            </span>
           </div>
           <SearchPalette />
         </header>

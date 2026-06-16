@@ -1,11 +1,54 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  --bg: #000000;
+  --surface: #0f0f11;
+  --surface-2: #16161a;
+  --surface-3: #1c1c21;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.05);
+  --text: #ffffff;
+  --muted: #6e6e73;
+  --muted-2: #9a9aa2;
+  --accent: #f07d00;
+  color-scheme: dark;
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  @apply bg-bg text-text antialiased;
+  font-family: "Geist", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv01", "ss01";
+}
+
+@layer components {
+  /* Mono-Label: Tabellenköpfe, IDs, Zeitstempel, Tasten-Hints */
+  .label {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .mono {
+    font-family: "Geist Mono", ui-monospace, monospace;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a31;
 }

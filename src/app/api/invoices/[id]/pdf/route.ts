@@ -11,6 +11,8 @@ import { loadLogoDataUri } from "@/modules/shared/pdf-logo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Headroom gegen Cold-Start-Timeouts (Hobby-Default sind nur 10s).
+export const maxDuration = 60;
 
 const n = (v: unknown) => Number(v ?? 0);
 const iso = (d: Date) => new Date(d).toLocaleDateString("de-DE");
@@ -75,7 +77,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return new Response(body, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${invoice.invoiceNumber}.pdf"`,
+        "Content-Disposition": `inline; filename="Rechnung-${invoice.invoiceNumber}.pdf"`,
       },
     });
   } catch (e) {

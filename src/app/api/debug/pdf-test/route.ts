@@ -7,6 +7,7 @@ import { loadLogoDataUri } from "@/modules/shared/pdf-logo";
 import { InvoicePdf, type InvoicePdfData } from "@/modules/invoices/invoice-pdf";
 import { QuotePdf, type QuotePdfData } from "@/modules/quotes/quote-pdf";
 import { computeQuoteItem } from "@/modules/quotes/quote.schema";
+import { OrderPdf, type OrderPdfData, type OrderPdfType } from "@/modules/orders/order-pdf";
 
 // TEMPORÄR: reproduziert die echte PDF-Generierung am ersten Datensatz, um den 503 zu finden.
 export const runtime = "nodejs";
@@ -158,6 +159,75 @@ export async function GET() {
     );
   } else {
     results.push({ name: "quote", status: "no-record" });
+  }
+
+  // Order (confirmation + deliverynote)
+  const order = await prisma.order.findFirst({
+    include: { customer: true, items: { orderBy: { sortOrder: "asc" } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const TYPES: Record<OrderPdfType, { title: string; showPrices: boolean }> = {
+    confirmation: { title: "Auftragsbestätigung", showPrices: true },
+    quote: { title: "Angebot", showPrices: true },
+    deliverynote: { title: "Lieferschein", showPrices: false },
+  };
+  if (order) {
+    for (const type of ["confirmation", "deliverynote"] as OrderPdfType[]) {
+      const cfg = TYPES[type];
+      const cust = order.customer;
+      results.push(
+        await tryRender(`order:${type}`, async () => {
+          const data: OrderPdfData = {
+            type,
+            title: cfg.title,
+            number: order.orderNumber,
+            issueDate: iso(order.createdAt),
+            showPrices: cfg.showPrices,
+            netTotal: n(order.netTotal),
+            taxTotal: n(order.taxTotal),
+            grossTotal: n(order.grossTotal),
+            notes: order.notes ?? null,
+            company: {
+              companyName: settings.companyName,
+              street: settings.street,
+              postalCode: settings.postalCode,
+              city: settings.city,
+              email: settings.email,
+              phone: settings.phone,
+              taxNumber: settings.taxNumber,
+              vatId: settings.vatId,
+              footer: settings.invoiceFooter,
+              logoDataUri,
+            },
+            customer: {
+              name: displayName(cust),
+              street: cust.street ?? "",
+              postalCode: cust.postalCode ?? "",
+              city: cust.city ?? "",
+              vatId: cust.vatId ?? "",
+            },
+            shipping: {
+              name: displayName(cust),
+              street: cust.shippingStreet || cust.street || "",
+              postalCode: cust.shippingZip || cust.postalCode || "",
+              city: cust.shippingCity || cust.city || "",
+            },
+            items: order.items.map((it) => ({
+              productName: it.productName,
+              quantity: n(it.quantity),
+              unitPrice: n(it.unitPrice),
+              taxRate: n(it.taxRate),
+              netAmount: n(it.netAmount),
+              grossAmount: n(it.grossAmount),
+            })),
+          };
+          const el = createElement(OrderPdf, { data }) as unknown as Parameters<typeof renderToBuffer>[0];
+          return renderToBuffer(el);
+        }),
+      );
+    }
+  } else {
+    results.push({ name: "order", status: "no-record" });
   }
 
   return new Response(JSON.stringify({ results }, null, 2), {

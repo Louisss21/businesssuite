@@ -12,6 +12,8 @@ import { QuotePdf, type QuotePdfData } from "@/modules/quotes/quote-pdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Headroom gegen Cold-Start-Timeouts (Hobby-Default sind nur 10s).
+export const maxDuration = 60;
 
 const iso = (d: Date) => new Date(d).toLocaleDateString("de-DE");
 
@@ -79,7 +81,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return new Response(body, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${quote.number}.pdf"`,
+        "Content-Disposition": `inline; filename="Angebot-${quote.number}.pdf"`,
       },
     });
   } catch (e) {

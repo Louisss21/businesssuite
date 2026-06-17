@@ -3,6 +3,7 @@ import { settingsService } from "@/modules/settings/settings.service";
 import { SettingsForm } from "./SettingsForm";
 import { SettingsTabs } from "./SettingsTabs";
 import { LogoUpload } from "./LogoUpload";
+import { TestReorderButton } from "./TestReorderButton";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function SettingsPage() {
       <PageHeader title="Einstellungen" subtitle="Stammdaten & Systemkonfiguration" />
       <SettingsTabs active="general" />
       <LogoUpload initialUrl={s.logoUrl} />
+      <TestReorderButton />
       <SettingsForm initial={initial} />
     </>
   );

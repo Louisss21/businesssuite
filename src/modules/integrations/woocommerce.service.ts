@@ -36,9 +36,34 @@ interface WooLineItem {
 }
 export interface WooOrder {
   id?: number | string;
+  number?: string;
   status?: string;
+  currency?: string;
+  payment_method?: string;
+  payment_method_title?: string;
+  transaction_id?: string;
+  date_paid?: string | null;
+  date_paid_gmt?: string | null;
   billing?: WooBilling;
   line_items?: WooLineItem[];
+}
+
+interface PaymentInfo {
+  paymentMethod: string | null;
+  paymentReference: string | null;
+  currency: string;
+  paidAt: Date | null;
+}
+
+function extractPayment(p: WooOrder): PaymentInfo {
+  const paidRaw = p.date_paid || p.date_paid_gmt || null;
+  const paidAt = paidRaw && !isNaN(Date.parse(paidRaw)) ? new Date(paidRaw) : null;
+  return {
+    paymentMethod: p.payment_method_title || p.payment_method || null,
+    paymentReference: p.transaction_id || null,
+    currency: (p.currency || "EUR").toUpperCase(),
+    paidAt,
+  };
 }
 
 const STATUS_MAP: Record<string, OrderStatus> = {
@@ -181,6 +206,11 @@ export const woocommerceService = {
       }));
       const totals = sumTotals(computed);
 
+      const payment = extractPayment(payload);
+      const shopOrderNumber = payload.number ? String(payload.number) : null;
+      // Position(en) ohne SKU oder ohne Produkt-Treffer -> Bestand nicht reduziert.
+      const hasUnmatchedSku = lineItems.some((li) => !li.sku || !bySku.get(li.sku));
+
       const existing = await tx.order.findUnique({ where: { externalId } });
 
       // ---- Bereits bekannt: nur Status/Bestand abgleichen (idempotent) ----
@@ -198,9 +228,31 @@ export const woocommerceService = {
 
         const updated = await tx.order.update({
           where: { id: existing.id },
-          data: { status, stockReduced },
+          data: {
+            status,
+            stockReduced,
+            shopOrderNumber,
+            hasUnmatchedSku,
+            paymentMethod: payment.paymentMethod,
+            paymentReference: payment.paymentReference,
+            currency: payment.currency,
+            paidAt: payment.paidAt ?? existing.paidAt,
+          },
         });
-        return { action: "updated", orderId: updated.id, status, stockReduced };
+        // Bezahlt im Shop -> ggf. verknüpfte Rechnung als bezahlt markieren.
+        if (payment.paidAt) {
+          await tx.invoice.updateMany({
+            where: { orderId: existing.id, status: { not: "CANCELLED" } },
+            data: {
+              status: "PAID",
+              paidAt: payment.paidAt,
+              paymentMethod: payment.paymentMethod,
+              paymentReference: payment.paymentReference,
+              currency: payment.currency,
+            },
+          });
+        }
+        return { action: "updated", orderId: updated.id, status, stockReduced, hasUnmatchedSku };
       }
 
       // ---- Neu anlegen ----
@@ -213,9 +265,16 @@ export const woocommerceService = {
           orderNumber,
           customerId: customer.id,
           status,
+          source: "ONLINESHOP",
           externalId,
           externalSource: "woocommerce",
+          shopOrderNumber,
+          hasUnmatchedSku,
           stockReduced: false,
+          paymentMethod: payment.paymentMethod,
+          paymentReference: payment.paymentReference,
+          currency: payment.currency,
+          paidAt: payment.paidAt,
           notes: `Aus WooCommerce-Bestellung #${externalId}`,
           netTotal: totals.netTotal,
           taxTotal: totals.taxTotal,
@@ -231,7 +290,7 @@ export const woocommerceService = {
         await tx.order.update({ where: { id: order.id }, data: { stockReduced: true } });
       }
 
-      return { action: "created", orderId: order.id, status, stockReduced };
+      return { action: "created", orderId: order.id, status, stockReduced, hasUnmatchedSku };
     });
   },
 };

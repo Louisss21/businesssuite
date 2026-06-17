@@ -247,6 +247,21 @@ model Order {
   externalSource String? // "woocommerce"
   stockReduced   Boolean @default(false) // ob Fertigerzeugnis-Bestand bereits abgebucht wurde
 
+  // Quelle & Shop-Daten (quellenunabhängige Logik: MANUAL/PHONE/ONLINESHOP)
+  source          String  @default("MANUAL")
+  shopOrderNumber String? // Bestellnummer im Shop
+  hasUnmatchedSku Boolean @default(false) // Position(en) ohne SKU-Treffer -> Bestand nicht reduziert
+
+  // Zahlungsdaten aus dem Shop (kein eigenes Payment-Processing, keine Kartendaten)
+  paymentMethod    String?
+  paymentReference String? // transaction_id des Zahlungsdienstleisters
+  paidAt           DateTime?
+  currency         String  @default("EUR")
+
+  // Dokumentversand-Protokoll
+  lastDocSentAt   DateTime?
+  lastDocSentType String?
+
   // Summen (denormalisiert für schnelle Listen/Reports)
   netTotal   Decimal @default(0) @db.Decimal(12, 2)
   taxTotal   Decimal @default(0) @db.Decimal(12, 2)
@@ -312,6 +327,12 @@ model Invoice {
   // Storno-Verknüpfung (Feature 10)
   isCancellation    Boolean @default(false) // true = Stornorechnung (negative Beträge)
   originalInvoiceId String?
+
+  // Zahlungsdaten (aus Shop übernommen) + Versandprotokoll
+  paymentMethod    String?
+  paymentReference String?
+  currency         String    @default("EUR")
+  lastSentAt       DateTime?
 
   customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
   order            Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
@@ -500,6 +521,9 @@ model Quote {
   netTotal   Float @default(0)
   taxTotal   Float @default(0)
   grossTotal Float @default(0)
+
+  // Versandprotokoll (Ein-Klick-Dokumentversand)
+  lastSentAt DateTime?
 
   items     QuoteItem[]
   createdAt DateTime    @default(now())

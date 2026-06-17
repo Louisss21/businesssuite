@@ -7,6 +7,7 @@ import { displayName } from "@/modules/crm/customer.service";
 import { settingsService } from "@/modules/settings/settings.service";
 import { InvoiceStatusSelect } from "../InvoiceStatusSelect";
 import { InvoiceActions } from "./InvoiceActions";
+import { SendDocumentButton } from "@/components/SendDocumentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function InvoiceDetailPage({
             >
               PDF herunterladen
             </a>
+            <SendDocumentButton kind="invoice" id={invoice.id} defaultEmail={c.email} />
             <LinkButton href="/invoices" variant="ghost">← Zurück</LinkButton>
           </div>
         }

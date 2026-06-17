@@ -10,10 +10,18 @@ export const dynamic = "force-dynamic";
 const COLUMNS: BulkColumn[] = [
   { key: "orderNumber", header: "Nummer", type: "link", hrefBase: "/orders/" },
   { key: "customer", header: "Kunde" },
+  { key: "source", header: "Quelle" },
   { key: "status", header: "Status", type: "badge" },
+  { key: "hinweis", header: "Hinweis" },
   { key: "invoice", header: "Rechnung" },
   { key: "gross", header: "Brutto", align: "right" },
 ];
+
+const SOURCE_LABEL: Record<string, string> = {
+  MANUAL: "Manuell",
+  PHONE: "Telefon",
+  ONLINESHOP: "Online-Shop",
+};
 
 const CHANGE_FIELDS: BulkField[] = [
   {
@@ -34,7 +42,9 @@ export default async function OrdersPage() {
     id: o.id,
     orderNumber: o.orderNumber,
     customer: displayName(o.customer),
+    source: SOURCE_LABEL[o.source] ?? o.source,
     status: o.status,
+    hinweis: o.hasUnmatchedSku ? "⚠ SKU offen" : null,
     invoice: o.invoice ? o.invoice.invoiceNumber : null,
     gross: formatEUR(o.grossTotal),
   }));

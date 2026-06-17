@@ -7,6 +7,7 @@ import { settingsService } from "@/modules/settings/settings.service";
 import { productService } from "@/modules/products/product.service";
 import { OrderActions } from "./OrderActions";
 import { OrderForm } from "../OrderForm";
+import { SendDocumentButton } from "@/components/SendDocumentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,21 @@ const PDF_DOCS = [
   { type: "deliverynote", label: "Lieferschein" },
   { type: "quote", label: "Angebot" },
 ] as const;
+
+const SOURCE_LABEL: Record<string, string> = {
+  MANUAL: "Manuell",
+  PHONE: "Telefon",
+  ONLINESHOP: "Online-Shop",
+};
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="text-slate-800">{value}</div>
+    </div>
+  );
+}
 
 export default async function OrderDetailPage({ params }: { params: { id: string } }) {
   const order = await orderService.getById(params.id).catch(() => null);
@@ -43,6 +59,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 ⬇ {d.label}
               </a>
             ))}
+            <SendDocumentButton kind="order" id={order.id} defaultEmail={order.customer.email} />
             <LinkButton href="/orders" variant="ghost">← Zurück</LinkButton>
           </div>
         }
@@ -60,6 +77,35 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           canInvoice={order.status !== "CANCELLED"}
         />
       </Card>
+
+      {(order.source !== "MANUAL" ||
+        order.hasUnmatchedSku ||
+        order.paymentMethod ||
+        order.lastDocSentAt) && (
+        <Card className="mb-6 p-4 text-sm">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+            <Info label="Quelle" value={SOURCE_LABEL[order.source] ?? order.source} />
+            {order.shopOrderNumber && <Info label="Shop-Bestellnr." value={order.shopOrderNumber} />}
+            {order.paymentMethod && <Info label="Zahlart" value={order.paymentMethod} />}
+            {order.paymentReference && <Info label="Zahlungsref." value={order.paymentReference} />}
+            {order.paidAt && (
+              <Info label="Bezahlt am" value={order.paidAt.toLocaleDateString("de-DE")} />
+            )}
+            {order.lastDocSentAt && (
+              <Info
+                label="Zuletzt gesendet"
+                value={`${order.lastDocSentType ?? "Dokument"} · ${order.lastDocSentAt.toLocaleString("de-DE")}`}
+              />
+            )}
+          </div>
+          {order.hasUnmatchedSku && (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
+              ⚠ Mindestens eine Position ohne SKU-Treffer – der Bestand wurde dafür nicht
+              reduziert. Bitte manuell prüfen.
+            </p>
+          )}
+        </Card>
+      )}
 
       {order.invoice && (
         <p className="mb-4 text-sm text-slate-600">

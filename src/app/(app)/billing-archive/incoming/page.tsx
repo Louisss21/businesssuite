@@ -56,6 +56,16 @@ export default async function IncomingInvoicesPage({ searchParams }: { searchPar
         subtitle="Lieferantenrechnungen · Jahr → Quartal → Monat"
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/api/incoming-invoices/export-zip${
+                buildHref(searchParams, {}).split("?")[1]
+                  ? "?" + buildHref(searchParams, {}).split("?")[1]
+                  : ""
+              }`}
+              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              ⬇ Als ZIP exportieren
+            </a>
             <ScanInboxButton />
             <LinkButton href="/billing-archive" variant="ghost">← Rechnungsarchiv</LinkButton>
           </div>

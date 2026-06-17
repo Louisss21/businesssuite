@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { PageHeader, LinkButton } from "@/components/ui";
 import { productionService } from "@/modules/production/production.service";
 import { ProductionAssistant } from "./ProductionAssistant";
+import { SerialEditor } from "./SerialEditor";
+import { DeleteButton } from "@/components/DeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +34,19 @@ export default async function ProductionOrderPage({ params }: { params: { id: st
       <PageHeader
         title={`Montage: ${order.tableModel.name}`}
         subtitle={order.serialNumber ? `Seriennummer ${order.serialNumber}` : "Sustable-Montage"}
-        action={<LinkButton href="/production" variant="ghost">← Zurück</LinkButton>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <DeleteButton
+              url={`/api/production/${order.id}`}
+              confirmText="Produktionsauftrag wirklich löschen? (Abgeschlossene/teil-entnommene Aufträge sind geschützt.)"
+              redirectTo="/production"
+              label="Löschen"
+            />
+            <LinkButton href="/production" variant="ghost">← Zurück</LinkButton>
+          </div>
+        }
       />
+      <SerialEditor orderId={order.id} current={order.serialNumber} />
       <ProductionAssistant
         order={{
           id: order.id,

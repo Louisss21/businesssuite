@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Table, Th, Td, Empty, Badge } from "@/components/ui";
 import { DeleteButton } from "@/components/DeleteButton";
+import { DuplicateButton } from "@/components/DuplicateButton";
 import { useBulkSelection } from "./useBulkSelection";
 import {
   BulkToolbar,
@@ -45,6 +46,8 @@ export function BulkTable({
   columns,
   editHrefBase,
   deleteUrlBase,
+  duplicateUrlBase,
+  duplicateRedirectBase,
   labelKey,
   deleteNoun,
   rowExtraLinks = [],
@@ -57,6 +60,9 @@ export function BulkTable({
   columns: BulkColumn[];
   editHrefBase?: string;
   deleteUrlBase?: string;
+  /** wenn gesetzt: Duplizieren-Icon je Zeile (POST `${duplicateUrlBase}${id}/duplicate`). */
+  duplicateUrlBase?: string;
+  duplicateRedirectBase?: string;
   labelKey: string;
   deleteNoun: string;
   rowExtraLinks?: RowExtraLink[];
@@ -71,7 +77,8 @@ export function BulkTable({
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const hasActions = !!editHrefBase || !!deleteUrlBase || rowExtraLinks.length > 0;
+  const hasActions =
+    !!editHrefBase || !!deleteUrlBase || !!duplicateUrlBase || rowExtraLinks.length > 0;
 
   async function doDelete() {
     if (!window.confirm(`${sel.count} ${deleteNoun} wirklich löschen?`)) return;
@@ -195,6 +202,13 @@ export function BulkTable({
                       >
                         ✎
                       </Link>
+                    )}
+                    {duplicateUrlBase && (
+                      <DuplicateButton
+                        url={`${duplicateUrlBase}${row.id}/duplicate`}
+                        redirectBase={duplicateRedirectBase ?? editHrefBase ?? "/"}
+                        iconOnly
+                      />
                     )}
                     {deleteUrlBase && (
                       <DeleteButton

@@ -11,3 +11,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return fail(e);
   }
 }
+
+/** Punkt 2.1: Produktionsauftrag löschen (bestandssicher, siehe Service). */
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    await requireUser();
+    await productionService.remove(params.id);
+    return ok({ success: true });
+  } catch (e) {
+    return fail(e);
+  }
+}

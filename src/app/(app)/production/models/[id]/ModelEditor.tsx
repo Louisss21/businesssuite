@@ -142,16 +142,16 @@ export function ModelEditor({
             ) : (
               <ul className="divide-y divide-slate-100">
                 {s.bom.map((b) => (
-                  <li key={b.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                    <span><strong>{b.quantity}×</strong> {b.componentName}</span>
-                    <button
-                      onClick={() => window.confirm("Bauteil aus diesem Schritt entfernen?") && call(`/api/table-models/bom/${b.id}`, "DELETE")}
-                      className="text-slate-300 hover:text-red-600"
-                      title="Entfernen"
-                    >
-                      ✕
-                    </button>
-                  </li>
+                  <BomRow
+                    key={b.id}
+                    bom={b}
+                    busy={busy}
+                    onSave={(q) => call(`/api/table-models/bom/${b.id}`, "PATCH", { quantity: q })}
+                    onRemove={() =>
+                      window.confirm("Bauteil aus diesem Schritt entfernen?") &&
+                      call(`/api/table-models/bom/${b.id}`, "DELETE")
+                    }
+                  />
                 ))}
               </ul>
             )}
@@ -188,6 +188,43 @@ export function ModelEditor({
         <Button onClick={() => setAddOpen(true)}>+ Arbeitsschritt</Button>
       )}
     </div>
+  );
+}
+
+function BomRow({
+  bom,
+  onSave,
+  onRemove,
+  busy,
+}: {
+  bom: BomItem;
+  onSave: (quantity: number) => Promise<boolean>;
+  onRemove: () => void;
+  busy: boolean;
+}) {
+  const [qty, setQty] = useState(String(bom.quantity));
+  return (
+    <li className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+      <span className="flex items-center gap-2">
+        <input
+          type="number"
+          min={1}
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          onBlur={() => {
+            const q = Number(qty);
+            if (Number.isInteger(q) && q >= 1 && q !== bom.quantity) onSave(q);
+            else setQty(String(bom.quantity));
+          }}
+          disabled={busy}
+          className="w-16 rounded-md border border-slate-300 px-2 py-1 text-right outline-none focus:border-brand-500"
+        />
+        <span>× {bom.componentName}</span>
+      </span>
+      <button onClick={onRemove} className="text-slate-300 hover:text-red-600" title="Entfernen">
+        ✕
+      </button>
+    </li>
   );
 }
 

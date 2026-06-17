@@ -124,6 +124,40 @@ export const orderService = {
     return prisma.order.delete({ where: { id } });
   },
 
+  /** Punkt 4: Bestellung duplizieren (neue Nummer, Status DRAFT, Positionen kopiert, Quelle MANUAL). */
+  async duplicate(id: string) {
+    const src = await this.getById(id);
+    const settings = await settingsService.get();
+    const year = new Date().getFullYear();
+    return prisma.$transaction(async (tx) => {
+      const orderNumber = await nextNumber(tx, "order", year, settings.orderNumberFormat);
+      return tx.order.create({
+        data: {
+          orderNumber,
+          customerId: src.customerId,
+          status: "DRAFT",
+          source: "MANUAL",
+          notes: src.notes,
+          netTotal: src.netTotal,
+          taxTotal: src.taxTotal,
+          grossTotal: src.grossTotal,
+          items: {
+            create: src.items.map((it, i) => ({
+              productName: it.productName,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              taxRate: it.taxRate,
+              netAmount: it.netAmount,
+              taxAmount: it.taxAmount,
+              grossAmount: it.grossAmount,
+              sortOrder: i,
+            })),
+          },
+        },
+      });
+    });
+  },
+
   /** B2: Bestellungen löschen – mit Rechnung verknüpfte werden übersprungen. */
   async bulkDelete(ids: string[]) {
     const orders = await prisma.order.findMany({

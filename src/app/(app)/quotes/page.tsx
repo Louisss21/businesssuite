@@ -75,6 +75,8 @@ export default async function QuotesPage({
         columns={COLUMNS}
         editHrefBase="/quotes/"
         deleteUrlBase="/api/quotes/"
+        duplicateUrlBase="/api/quotes/"
+        duplicateRedirectBase="/quotes/"
         labelKey="number"
         deleteNoun="Angebot(e)"
         rowExtraLinks={[

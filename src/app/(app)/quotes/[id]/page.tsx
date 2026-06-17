@@ -8,6 +8,7 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { QuoteForm } from "../QuoteForm";
 import { QuoteConvertButton } from "./QuoteConvertButton";
 import { SendDocumentButton } from "@/components/SendDocumentButton";
+import { DuplicateButton } from "@/components/DuplicateButton";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function QuoteDetailPage({ params }: { params: { id: string
               ⬇ PDF herunterladen
             </a>
             <SendDocumentButton kind="quote" id={quote.id} defaultEmail={quote.customer.email} />
+            <DuplicateButton url={`/api/quotes/${quote.id}/duplicate`} redirectBase="/quotes/" />
             <DeleteButton
               url={`/api/quotes/${quote.id}`}
               confirmText={`Angebot ${quote.number} wirklich löschen?`}

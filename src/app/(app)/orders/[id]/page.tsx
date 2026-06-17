@@ -8,6 +8,7 @@ import { productService } from "@/modules/products/product.service";
 import { OrderActions } from "./OrderActions";
 import { OrderForm } from "../OrderForm";
 import { SendDocumentButton } from "@/components/SendDocumentButton";
+import { DuplicateButton } from "@/components/DuplicateButton";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               </a>
             ))}
             <SendDocumentButton kind="order" id={order.id} defaultEmail={order.customer.email} />
+            <DuplicateButton url={`/api/orders/${order.id}/duplicate`} redirectBase="/orders/" />
             <LinkButton href="/orders" variant="ghost">← Zurück</LinkButton>
           </div>
         }

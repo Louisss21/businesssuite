@@ -61,8 +61,45 @@ export const productionService = {
       where: { serialNumber: s, NOT: { id } },
     });
     if (dup) throw new AppError("Diese Seriennummer ist bereits vergeben.");
-    await this.getById(id);
-    return prisma.productionOrder.update({ where: { id }, data: { serialNumber: s } });
+    // Punkt 2.2: auch bei abgeschlossenen Aufträgen änderbar; alte Nummer protokollieren.
+    const current = await this.getById(id);
+    if (current.serialNumber && current.serialNumber !== s) {
+      console.log(`[serial] Order ${id}: ${current.serialNumber} -> ${s}`);
+    }
+    const history =
+      current.serialNumber && current.serialNumber !== s
+        ? [...current.serialHistory, `${current.serialNumber}@${new Date().toISOString()}`]
+        : current.serialHistory;
+    return prisma.productionOrder.update({
+      where: { id },
+      data: { serialNumber: s, serialHistory: history },
+    });
+  },
+
+  /**
+   * Punkt 2.1: Produktionsauftrag löschen – bestandssicher.
+   *  - CANCELLED: Entnahmen wurden bereits zurückgebucht -> löschbar (Bewegungen
+   *    bleiben als Historie erhalten, referenceId ist freier String).
+   *  - IN_PROGRESS mit Entnahmen: NICHT löschen -> zuerst "Abbrechen" (bucht zurück).
+   *  - COMPLETED: NICHT löschen (Historie + verbuchtes Fertigerzeugnis bleiben erhalten).
+   * StepLogs werden per Cascade mitgelöscht. Kein stiller Bestandsverlust.
+   */
+  async remove(id: string) {
+    const order = await this.getById(id);
+    const movements = await prisma.stockMovement.count({ where: { referenceId: id, direction: "OUT" } });
+    if (order.status === "COMPLETED") {
+      throw new AppError(
+        "Abgeschlossene Aufträge können nicht gelöscht werden (Historie und verbuchtes Fertigerzeugnis bleiben erhalten).",
+        409,
+      );
+    }
+    if (order.status === "IN_PROGRESS" && movements > 0) {
+      throw new AppError(
+        "Dieser Auftrag hat bereits Bauteile entnommen. Bitte zuerst „Abbrechen" (bucht den Bestand zurück), danach löschen.",
+        409,
+      );
+    }
+    return prisma.productionOrder.delete({ where: { id } });
   },
 
   /** Fix 2.3: Vorschlag SUS-{YYYY}-{laufende Nr.} (manuell überschreibbar). */

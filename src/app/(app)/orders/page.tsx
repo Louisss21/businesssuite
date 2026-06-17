@@ -61,6 +61,8 @@ export default async function OrdersPage() {
         columns={COLUMNS}
         editHrefBase="/orders/"
         deleteUrlBase="/api/orders/"
+        duplicateUrlBase="/api/orders/"
+        duplicateRedirectBase="/orders/"
         labelKey="orderNumber"
         deleteNoun="Bestellung(en)"
         rowExtraLinks={[

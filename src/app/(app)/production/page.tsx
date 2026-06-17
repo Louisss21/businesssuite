@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHeader, Table, Th, Td, Badge, Empty, LinkButton } from "@/components/ui";
 import { productionService } from "@/modules/production/production.service";
 import { StartProduction } from "./StartProduction";
+import { DeleteButton } from "@/components/DeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -41,9 +42,16 @@ export default async function ProductionPage() {
               <Td><Badge value={o.status} /></Td>
               <Td className="text-slate-500">{o.startedAt.toLocaleDateString("de-DE")}</Td>
               <Td className="text-right">
-                <Link href={`/production/${o.id}`} className="text-sm font-medium text-brand-700">
-                  Öffnen →
-                </Link>
+                <div className="flex items-center justify-end gap-2">
+                  <DeleteButton
+                    url={`/api/production/${o.id}`}
+                    confirmText="Produktionsauftrag wirklich löschen? (Abgeschlossene/teil-entnommene Aufträge sind geschützt.)"
+                    iconOnly
+                  />
+                  <Link href={`/production/${o.id}`} className="text-sm font-medium text-brand-700">
+                    Öffnen →
+                  </Link>
+                </div>
               </Td>
             </tr>
           ))}

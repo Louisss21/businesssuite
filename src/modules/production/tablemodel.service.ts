@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { notFound } from "@/lib/http";
+import { AppError, notFound } from "@/lib/http";
 
 export const modelCreateSchema = z.object({
   name: z.string().trim().min(1, "Name erforderlich"),
@@ -75,7 +75,20 @@ export const tableModelService = {
     });
   },
 
-  delete(id: string) {
+  /**
+   * Punkt 1.3: Modell löschen. Steps + BomItems werden per Cascade mitgelöscht.
+   * Schutzregel: existieren Produktionsaufträge, wird NICHT gelöscht (Historie/
+   * Bestände bleiben erhalten) – stattdessen Empfehlung, das Modell zu deaktivieren.
+   */
+  async delete(id: string) {
+    await this.getById(id);
+    const orders = await prisma.productionOrder.count({ where: { tableModelId: id } });
+    if (orders > 0) {
+      throw new AppError(
+        `Dieses Modell hat ${orders} Produktionsauftrag/-aufträge und kann nicht gelöscht werden (Auftragshistorie bleibt erhalten). Setze es stattdessen auf „inaktiv".`,
+        409,
+      );
+    }
     return prisma.tableModel.delete({ where: { id } });
   },
 
@@ -201,11 +214,33 @@ export const tableModelService = {
     });
   },
 
-  addBom(stepId: string, input: unknown) {
+  /**
+   * Punkt 1.1: Bauteil zu einem Schritt hinzufügen (additiv, ohne bestehende zu
+   * überschreiben). Dedupe-Entscheidung: dasselbe Bauteil im selben Schritt wird
+   * NICHT doppelt angelegt, sondern die Menge wird zusammengeführt (addiert).
+   */
+  async addBom(stepId: string, input: unknown) {
     const d = bomCreateSchema.parse(input);
+    const existing = await prisma.bomItem.findFirst({
+      where: { stepId, componentId: d.componentId },
+    });
+    if (existing) {
+      return prisma.bomItem.update({
+        where: { id: existing.id },
+        data: { quantity: existing.quantity + d.quantity },
+      });
+    }
     return prisma.bomItem.create({
       data: { stepId, componentId: d.componentId, quantity: d.quantity },
     });
+  },
+
+  /** Punkt 1.1: Menge einer Stücklisten-Position ändern. */
+  async updateBom(bomId: string, quantity: number) {
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new AppError("Menge muss eine ganze Zahl ≥ 1 sein.", 422);
+    }
+    return prisma.bomItem.update({ where: { id: bomId }, data: { quantity } });
   },
 
   deleteBom(bomId: string) {

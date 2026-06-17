@@ -145,6 +145,39 @@ export const quoteService = {
     return prisma.quote.delete({ where: { id } });
   },
 
+  /** Punkt 4: Angebot duplizieren (neue Nummer, Status DRAFT, Positionen tief kopiert). */
+  async duplicate(id: string) {
+    const src = await this.getById(id);
+    const settings = await settingsService.get();
+    const year = new Date().getFullYear();
+    return prisma.$transaction(async (tx) => {
+      const number = await nextNumber(tx, "quote", year, settings.quoteNumberFormat);
+      return tx.quote.create({
+        data: {
+          number,
+          customerId: src.customerId,
+          status: "DRAFT",
+          validUntil: null,
+          notes: src.notes,
+          netTotal: src.netTotal,
+          taxTotal: src.taxTotal,
+          grossTotal: src.grossTotal,
+          items: {
+            create: src.items.map((it, i) => ({
+              productId: it.productId,
+              name: it.name,
+              qty: it.qty,
+              unitPrice: it.unitPrice,
+              discountPct: it.discountPct,
+              taxRate: it.taxRate,
+              sortOrder: i,
+            })),
+          },
+        },
+      });
+    });
+  },
+
   /** B2: Angebote löschen (keine FK-Schutzregeln). */
   async bulkDelete(ids: string[]) {
     const res = await prisma.quote.deleteMany({ where: { id: { in: ids } } });

@@ -743,6 +743,7 @@ model ProductionOrder {
   tableModel   TableModel          @relation(fields: [tableModelId], references: [id], onDelete: Restrict)
   status       ProductionStatus    @default(IN_PROGRESS)
   serialNumber String?             @unique
+  serialHistory String[]           @default([]) // bisherige Seriennummern (alt@Zeitpunkt) zur Nachvollziehbarkeit
   currentStep  Int                 @default(1)
   startedById  String?
   startedAt    DateTime            @default(now())

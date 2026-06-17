@@ -95,7 +95,7 @@ export const productionService = {
     }
     if (order.status === "IN_PROGRESS" && movements > 0) {
       throw new AppError(
-        "Dieser Auftrag hat bereits Bauteile entnommen. Bitte zuerst „Abbrechen" (bucht den Bestand zurück), danach löschen.",
+        "Dieser Auftrag hat bereits Bauteile entnommen. Bitte zuerst 'Abbrechen' (bucht den Bestand zurück), danach löschen.",
         409,
       );
     }

@@ -3,6 +3,7 @@ import { PageHeader, LinkButton, Card } from "@/components/ui";
 import { tableModelService } from "@/modules/production/tablemodel.service";
 import { componentService } from "@/modules/inventory/component.service";
 import { DeleteButton } from "@/components/DeleteButton";
+import { DuplicateButton } from "@/components/DuplicateButton";
 import { ModelEditor } from "./ModelEditor";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,11 @@ export default async function ModelDetailPage({ params }: { params: { id: string
         subtitle={model.product ? `Fertigerzeugnis: ${model.product.name}` : "Stückliste"}
         action={
           <div className="flex flex-wrap gap-2">
+            <DuplicateButton
+              url={`/api/table-models/${model.id}/duplicate`}
+              redirectBase="/production/models/"
+              label="Modell duplizieren"
+            />
             <DeleteButton
               url={`/api/table-models/${model.id}`}
               confirmText={`Modell „${model.name}" wirklich löschen?`}

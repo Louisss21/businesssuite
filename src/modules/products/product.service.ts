@@ -104,6 +104,33 @@ export const productService = {
     return prisma.product.delete({ where: { id } });
   },
 
+  /** Punkt 1: vollständige Kopie (neue eindeutige SKU, Name + "(Kopie)", Bestand 0). */
+  async duplicate(id: string) {
+    const src = await this.getById(id);
+    return prisma.$transaction(async (tx) => {
+      let candidate = `${src.sku}-COPY`;
+      let i = 1;
+      while (await tx.product.findUnique({ where: { sku: candidate } })) {
+        i += 1;
+        candidate = `${src.sku}-COPY-${i}`;
+      }
+      return tx.product.create({
+        data: {
+          sku: candidate,
+          name: `${src.name} (Kopie)`,
+          description: src.description,
+          categoryId: src.categoryId,
+          priceNet: src.priceNet,
+          taxRate: src.taxRate,
+          stockQty: 0, // Bestand NICHT mitkopieren
+          minStock: src.minStock,
+          unit: src.unit,
+          active: src.active,
+        },
+      });
+    });
+  },
+
   /** B2: Produkte löschen – als Fertigerzeugnis in der Produktion referenzierte überspringen. */
   async bulkDelete(ids: string[]) {
     const rows = await prisma.product.findMany({

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/DataTable";
 import { DeleteButton } from "@/components/DeleteButton";
+import { DuplicateButton } from "@/components/DuplicateButton";
 
 // lokal formatieren (kein Import aus lib/money -> kein @prisma/client im Client-Bundle)
 const eur = (v: number) =>
@@ -78,6 +79,7 @@ const columns: Column<ProductRow>[] = [
         >
           ✎
         </Link>
+        <DuplicateButton url={`/api/products/${p.id}/duplicate`} redirectBase="/products/" iconOnly />
         <DeleteButton url={`/api/products/${p.id}`} confirmText={`Produkt „${p.name}" wirklich löschen?`} iconOnly />
       </div>
     ),

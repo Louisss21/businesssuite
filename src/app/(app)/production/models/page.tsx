@@ -3,6 +3,7 @@ import { PageHeader, Table, Th, Td, Badge, Empty, LinkButton } from "@/component
 import { tableModelService } from "@/modules/production/tablemodel.service";
 import { productService } from "@/modules/products/product.service";
 import { ModelCreateForm } from "./ModelCreateForm";
+import { DuplicateButton } from "@/components/DuplicateButton";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,16 @@ export default async function ModelsPage() {
               <Td className="text-right">{m._count.steps}</Td>
               <Td className="text-right">{m._count.orders}</Td>
               <Td className="text-right">
-                <Link href={`/production/models/${m.id}`} className="text-sm font-medium text-brand-700">
-                  Bearbeiten →
-                </Link>
+                <div className="flex items-center justify-end gap-2">
+                  <DuplicateButton
+                    url={`/api/table-models/${m.id}/duplicate`}
+                    redirectBase="/production/models/"
+                    iconOnly
+                  />
+                  <Link href={`/production/models/${m.id}`} className="text-sm font-medium text-brand-700">
+                    Bearbeiten →
+                  </Link>
+                </div>
               </Td>
             </tr>
           ))}

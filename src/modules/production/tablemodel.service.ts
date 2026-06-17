@@ -79,6 +79,46 @@ export const tableModelService = {
     return prisma.tableModel.delete({ where: { id } });
   },
 
+  /**
+   * Punkt 3: Tiefe Kopie eines Modells – Steps + BomItems vollständig, ohne
+   * Produktionsaufträge. Produktverknüpfung wird NICHT übernommen (eindeutige
+   * Zuordnung 1 Produkt ↔ 1 Rezept bleibt erhalten; nach dem Klonen zuweisbar).
+   */
+  async duplicate(id: string) {
+    const src = await this.getById(id);
+    return prisma.$transaction(async (tx) => {
+      const copy = await tx.tableModel.create({
+        data: {
+          name: `${src.name} (Kopie)`,
+          description: src.description,
+          active: true,
+          productId: null,
+        },
+      });
+      for (const step of src.steps) {
+        await tx.productionStep.create({
+          data: {
+            tableModelId: copy.id,
+            order: step.order,
+            title: step.title,
+            instruction: step.instruction,
+            videoUrl: step.videoUrl,
+            pdfUrl: step.pdfUrl,
+            requiresInput: step.requiresInput,
+            inputLabel: step.inputLabel,
+            bomItems: {
+              create: step.bomItems.map((b) => ({
+                componentId: b.componentId,
+                quantity: b.quantity,
+              })),
+            },
+          },
+        });
+      }
+      return copy;
+    });
+  },
+
   async addStep(modelId: string, input: unknown) {
     await this.getById(modelId);
     const d = stepCreateSchema.parse(input);

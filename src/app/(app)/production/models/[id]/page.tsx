@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PageHeader, LinkButton, Card } from "@/components/ui";
 import { tableModelService } from "@/modules/production/tablemodel.service";
 import { componentService } from "@/modules/inventory/component.service";
+import { productService } from "@/modules/products/product.service";
 import { DeleteButton } from "@/components/DeleteButton";
 import { DuplicateButton } from "@/components/DuplicateButton";
 import { ModelEditor } from "./ModelEditor";
@@ -11,7 +12,10 @@ export const dynamic = "force-dynamic";
 export default async function ModelDetailPage({ params }: { params: { id: string } }) {
   const model = await tableModelService.getById(params.id).catch(() => null);
   if (!model) notFound();
-  const components = await componentService.list();
+  const [components, products] = await Promise.all([
+    componentService.list(),
+    productService.list({ active: true }),
+  ]);
 
   return (
     <>
@@ -39,6 +43,9 @@ export default async function ModelDetailPage({ params }: { params: { id: string
 
       <ModelEditor
         modelId={model.id}
+        products={products.map((p) => ({ id: p.id, name: p.name }))}
+        productId={model.productId}
+        active={model.active}
         components={components.map((c) => ({ id: c.id, name: c.name, sku: c.sku }))}
         steps={model.steps.map((s) => ({
           id: s.id,

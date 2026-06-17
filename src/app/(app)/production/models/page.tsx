@@ -4,6 +4,7 @@ import { tableModelService } from "@/modules/production/tablemodel.service";
 import { productService } from "@/modules/products/product.service";
 import { ModelCreateForm } from "./ModelCreateForm";
 import { DuplicateButton } from "@/components/DuplicateButton";
+import { DeleteButton } from "@/components/DeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,11 @@ export default async function ModelsPage() {
                   <DuplicateButton
                     url={`/api/table-models/${m.id}/duplicate`}
                     redirectBase="/production/models/"
+                    iconOnly
+                  />
+                  <DeleteButton
+                    url={`/api/table-models/${m.id}`}
+                    confirmText={`Modell „${m.name}" wirklich löschen? (Modelle mit Produktionsaufträgen sind geschützt – dann stattdessen auf inaktiv setzen.)`}
                     iconOnly
                   />
                   <Link href={`/production/models/${m.id}`} className="text-sm font-medium text-brand-700">

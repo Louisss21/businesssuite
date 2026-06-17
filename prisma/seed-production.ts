@@ -92,9 +92,9 @@ const STEPS: StepDef[] = [
   {
     order: 5,
     title: "Modul am Rahmen befestigen",
-    instruction: "Modul in die Vorrichtung anhängen und mit Schrauben am Rahmen befestigen. TODO: exakte Schraubenmenge im Admin nachpflegen.",
+    instruction: "Modul in die Vorrichtung anhängen und mit Schrauben am Rahmen befestigen.",
     videoUrl: SAMPLE_VIDEO,
-    // TODO: Schraubenmenge ist laut Vorgabe noch nicht festgelegt – Platzhalter 4, im UI editierbar.
+    // Hinweis (intern): Schraubenmenge als Platzhalter 4 gesetzt, im Modell-Editor anpassbar.
     bom: [{ sku: "CMP-SCHR-RAHMEN", quantity: 4 }],
   },
   {

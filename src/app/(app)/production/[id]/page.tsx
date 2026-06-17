@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { PageHeader, LinkButton } from "@/components/ui";
 import { productionService } from "@/modules/production/production.service";
+import { isRealMedia } from "@/lib/media";
 import { ProductionAssistant } from "./ProductionAssistant";
 import { SerialEditor } from "./SerialEditor";
 import { DeleteButton } from "@/components/DeleteButton";
@@ -17,8 +18,8 @@ export default async function ProductionOrderPage({ params }: { params: { id: st
     order: s.order,
     title: s.title,
     instruction: s.instruction,
-    videoUrl: s.videoUrl,
-    pdfUrl: s.pdfUrl,
+    videoUrl: isRealMedia(s.videoUrl) ? s.videoUrl : null,
+    pdfUrl: isRealMedia(s.pdfUrl) ? s.pdfUrl : null,
     requiresInput: s.requiresInput,
     inputLabel: s.inputLabel,
     bom: s.bomItems.map((b) => ({

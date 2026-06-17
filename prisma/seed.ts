@@ -53,6 +53,18 @@ async function main() {
   // Produktion & Lager (Sustable ONE)
   await seedProduction(prisma);
 
+  // 1.4: Entwickler-Platzhalter aus bereits vorhandenen Schritt-Anleitungen entfernen
+  // (idempotent – betrifft nur Texte mit "TODO:").
+  const todoSteps = await prisma.productionStep.findMany({
+    where: { instruction: { contains: "TODO:" } },
+    select: { id: true, instruction: true },
+  });
+  for (const s of todoSteps) {
+    const cleaned = s.instruction.replace(/\s*TODO:.*$/s, "").trim();
+    await prisma.productionStep.update({ where: { id: s.id }, data: { instruction: cleaned } });
+  }
+  if (todoSteps.length) console.log(`  Bereinigt: ${todoSteps.length} Schritt(e) mit TODO-Platzhalter`);
+
   console.log("Seed fertig:");
   console.log(`  Login: ${email} / ${password}`);
   console.log(`  Kunde: ${customer.companyName}`);

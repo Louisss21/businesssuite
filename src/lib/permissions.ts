@@ -87,6 +87,7 @@ const API_PREFIX: [string, ModuleKey][] = [
   ["/api/table-models", "production"],
   ["/api/production", "production"],
   ["/api/components", "inventory"],
+  ["/api/suppliers", "inventory"],
   ["/api/invoices", "invoices"],
   ["/api/billing-archive", "billing-archive"],
   ["/api/incoming-invoices", "billing-archive"],

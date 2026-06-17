@@ -22,15 +22,23 @@ export function ModelEditor({
   modelId,
   steps,
   components,
+  products,
+  productId,
+  active,
 }: {
   modelId: string;
   steps: Step[];
   components: ComponentOption[];
+  products: { id: string; name: string }[];
+  productId: string | null;
+  active: boolean;
 }) {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [prod, setProd] = useState(productId ?? "");
+  const [act, setAct] = useState(active);
 
   const ids = steps.map((s) => s.id);
 
@@ -80,6 +88,42 @@ export function ModelEditor({
 
   return (
     <div className="space-y-4">
+      {/* Punkt 2.6: Fertigerzeugnis-Zuordnung + Aktiv-Status */}
+      <Card className="p-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Fertigerzeugnis (wird bei Fertigstellung +1 eingebucht)">
+            <Select
+              value={prod}
+              disabled={busy}
+              onChange={(e) => {
+                setProd(e.target.value);
+                call(`/api/table-models/${modelId}`, "PUT", { productId: e.target.value });
+              }}
+            >
+              <option value="">— kein Fertigerzeugnis —</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <label className="flex items-end gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={act}
+              disabled={busy}
+              onChange={(e) => {
+                setAct(e.target.checked);
+                call(`/api/table-models/${modelId}`, "PUT", { active: e.target.checked });
+              }}
+              className="mb-2 h-4 w-4 rounded border-slate-300 accent-brand-600"
+            />
+            Modell aktiv (für neue Produktionsaufträge auswählbar)
+          </label>
+        </div>
+      </Card>
+
       {steps.map((s, i) => (
         <Card key={s.id} className="p-5">
           {editId === s.id ? (

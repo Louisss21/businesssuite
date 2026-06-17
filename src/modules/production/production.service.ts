@@ -18,8 +18,14 @@ const orderInclude = {
 } as const;
 
 export const productionService = {
-  listOrders() {
+  listOrders(query?: { status?: string; search?: string }) {
     return prisma.productionOrder.findMany({
+      where: {
+        status: query?.status ? (query.status as never) : undefined,
+        serialNumber: query?.search
+          ? { contains: query.search, mode: "insensitive" }
+          : undefined,
+      },
       orderBy: { startedAt: "desc" },
       include: { tableModel: { select: { name: true } } },
     });

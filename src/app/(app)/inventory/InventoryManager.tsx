@@ -46,7 +46,8 @@ function Row({
   const [minStock, setMinStock] = useState(String(c.minStock));
   const [savingMin, setSavingMin] = useState(false);
   const [open, setOpen] = useState(false);
-  const [delta, setDelta] = useState("");
+  const [mode, setMode] = useState<"in" | "out" | "target">("in");
+  const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("Wareneingang");
   const [busy, setBusy] = useState(false);
 
@@ -63,18 +64,25 @@ function Row({
   }
 
   async function book() {
-    if (!delta || Number(delta) === 0) return;
+    const amt = Number(amount);
+    if (!amount || isNaN(amt) || amt < 0) return;
+    // Zielwert: delta = Ziel - aktueller Bestand; Zugang: +amt; Abgang: -amt
+    const delta = mode === "target" ? amt - c.stockQty : mode === "out" ? -amt : amt;
+    if (delta === 0) return;
     setBusy(true);
     const res = await fetch(`/api/components/${c.id}/stock`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ delta: Number(delta), reason }),
+      body: JSON.stringify({ delta, reason: reason.trim() || "Korrektur" }),
     });
     setBusy(false);
     if (res.ok) {
       setOpen(false);
-      setDelta("");
+      setAmount("");
       router.refresh();
+    } else {
+      const b = await res.json().catch(() => ({}));
+      window.alert(b.error ?? "Buchung fehlgeschlagen");
     }
   }
 
@@ -113,8 +121,24 @@ function Row({
           <td colSpan={7} className="border-b border-slate-100 bg-slate-50 px-4 py-3">
             <div className="flex flex-wrap items-end gap-2">
               <label className="text-xs text-slate-600">
-                <span className="mb-1 block">Menge (+ Zugang / − Abgang)</span>
-                <Input type="number" value={delta} onChange={(e) => setDelta(e.target.value)} className="w-32" />
+                <span className="mb-1 block">Art</span>
+                <select
+                  value={mode}
+                  onChange={(e) => {
+                    const m = e.target.value as "in" | "out" | "target";
+                    setMode(m);
+                    setReason(m === "in" ? "Wareneingang" : m === "out" ? "Abgang (Bruch/Schwund)" : "Inventur-Korrektur");
+                  }}
+                  className="rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-brand-500"
+                >
+                  <option value="in">Zugang (Wareneingang)</option>
+                  <option value="out">Abgang (Bruch/Schwund)</option>
+                  <option value="target">Korrektur auf Zielwert</option>
+                </select>
+              </label>
+              <label className="text-xs text-slate-600">
+                <span className="mb-1 block">{mode === "target" ? "Zielbestand" : "Menge"}</span>
+                <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} className="w-32" />
               </label>
               <label className="text-xs text-slate-600">
                 <span className="mb-1 block">Grund</span>
@@ -153,9 +177,23 @@ export function InventoryManager({ components }: { components: ComponentRow[] })
     } else setMsg(json.error ?? "Aktualisierung fehlgeschlagen");
   }
 
+  async function doDelete() {
+    if (!window.confirm(`${sel.count} Bauteil(e) löschen? In Stücklisten verwendete werden übersprungen.`)) return;
+    setBusy(true);
+    const { ok, json } = await runBulk("/api/components/bulk-delete", { ids: sel.selectedIds });
+    setBusy(false);
+    if (ok) {
+      const d = json.data ?? {};
+      const skipped = (d.skipped as { reason: string }[] | undefined) ?? [];
+      setMsg(`${d.deleted ?? 0} gelöscht${skipped.length ? `, ${skipped.length} übersprungen (in Stückliste)` : ""}.`);
+      sel.clear();
+      router.refresh();
+    } else setMsg(json.error ?? "Löschen fehlgeschlagen");
+  }
+
   return (
     <>
-      <BulkToolbar count={sel.count} busy={busy} onClear={sel.clear}>
+      <BulkToolbar count={sel.count} busy={busy} onClear={sel.clear} onDelete={doDelete}>
         <button
           onClick={() => setDialog(true)}
           disabled={busy}

@@ -6,11 +6,33 @@ import { DeleteButton } from "@/components/DeleteButton";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductionPage() {
+const STATUS_FILTERS = ["", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
+const STATUS_LABEL: Record<string, string> = {
+  "": "Alle",
+  IN_PROGRESS: "In Arbeit",
+  COMPLETED: "Fertig",
+  CANCELLED: "Abgebrochen",
+};
+
+export default async function ProductionPage({
+  searchParams,
+}: {
+  searchParams: { status?: string; q?: string };
+}) {
+  const status = searchParams.status ?? "";
+  const q = searchParams.q ?? "";
   const [orders, models] = await Promise.all([
-    productionService.listOrders(),
+    productionService.listOrders({ status: status || undefined, search: q || undefined }),
     productionService.listActiveModels(),
   ]);
+
+  const qs = (s: string) => {
+    const p = new URLSearchParams();
+    if (s) p.set("status", s);
+    if (q) p.set("q", q);
+    const str = p.toString();
+    return str ? `/production?${str}` : "/production";
+  };
 
   return (
     <>
@@ -22,6 +44,32 @@ export default async function ProductionPage() {
       <StartProduction models={models.map((m) => ({ id: m.id, name: m.name, steps: m._count.steps }))} />
 
       <h2 className="mb-3 text-lg font-semibold text-slate-900">Produktionsaufträge</h2>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {STATUS_FILTERS.map((s) => (
+          <Link
+            key={s || "all"}
+            href={qs(s)}
+            className={`rounded-full px-3 py-1 text-sm font-medium ${
+              status === s ? "bg-brand-600 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+            }`}
+          >
+            {STATUS_LABEL[s]}
+          </Link>
+        ))}
+        <form action="/production" className="ml-auto flex items-center gap-2">
+          {status && <input type="hidden" name="status" value={status} />}
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Seriennummer suchen…"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-brand-500"
+          />
+          <button className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            Suchen
+          </button>
+        </form>
+      </div>
       <Table>
         <thead>
           <tr>

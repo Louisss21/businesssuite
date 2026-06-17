@@ -140,17 +140,45 @@ export const componentService = {
     });
   },
 
-  /** Punkt 2: Löschen nur, wenn das Bauteil in keiner Stückliste referenziert ist. */
+  /** Punkt 2/1.1: Löschen nur, wenn das Bauteil in keiner Stückliste referenziert ist
+   *  – mit klarer Meldung, welche Modelle/Schritte es verwenden. */
   async remove(id: string) {
     await this.getById(id);
-    const inBom = await prisma.bomItem.count({ where: { componentId: id } });
-    if (inBom > 0) {
+    const refs = await prisma.bomItem.findMany({
+      where: { componentId: id },
+      include: { step: { include: { tableModel: { select: { name: true } } } } },
+    });
+    if (refs.length > 0) {
+      const list = refs
+        .slice(0, 3)
+        .map((r) => `${r.step.tableModel.name} · Schritt „${r.step.title}"`)
+        .join("; ");
+      const more = refs.length > 3 ? ` und ${refs.length - 3} weitere` : "";
       throw new AppError(
-        `Bauteil ist in ${inBom} Stücklisten-Position(en) referenziert und kann nicht gelöscht werden. Bitte zuerst aus den Modellen entfernen.`,
+        `Bauteil kann nicht gelöscht werden – wird in ${refs.length} Stücklisten-Position(en) verwendet: ${list}${more}. Bitte zuerst dort entfernen.`,
         409,
       );
     }
     return prisma.component.delete({ where: { id } });
+  },
+
+  /** Punkt 2.5: mehrere Bauteile löschen – referenzierte (in Stückliste) werden übersprungen. */
+  async bulkDelete(ids: string[]) {
+    const refs = await prisma.bomItem.findMany({
+      where: { componentId: { in: ids } },
+      select: { componentId: true },
+    });
+    const blocked = new Set(refs.map((r) => r.componentId));
+    const deletable = ids.filter((id) => !blocked.has(id));
+    const skipped = ids
+      .filter((id) => blocked.has(id))
+      .map((id) => ({ id, reason: "in Stückliste verwendet" }));
+    let deleted = 0;
+    if (deletable.length) {
+      const res = await prisma.component.deleteMany({ where: { id: { in: deletable } } });
+      deleted = res.count;
+    }
+    return { deleted, skipped };
   },
 
   /** B3: Mindestbestand für mehrere Bauteile gleichzeitig setzen (kein Löschen im Lager). */

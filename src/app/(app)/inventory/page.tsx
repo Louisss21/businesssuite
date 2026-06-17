@@ -19,7 +19,12 @@ export default async function InventoryPage({
       <PageHeader
         title="Lager"
         subtitle="Bauteile & Bestände"
-        action={<LinkButton href="/inventory/new">+ Neues Bauteil</LinkButton>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <LinkButton href="/inventory/suppliers" variant="ghost">Lieferanten</LinkButton>
+            <LinkButton href="/inventory/new">+ Neues Bauteil</LinkButton>
+          </div>
+        }
       />
 
       <div className="mb-4 flex flex-wrap gap-2 text-sm">

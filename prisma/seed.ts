@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { seedProduction } from "./seed-production";
+import { seedModelsV2 } from "./seed-models";
 
 const prisma = new PrismaClient();
 
@@ -52,6 +53,9 @@ async function main() {
 
   // Produktion & Lager (Sustable ONE)
   await seedProduction(prisma);
+
+  // Umstellung auf 3 Modelle (ONE/ONE+/mini), 12 Schritte, gemeinsames Kleinteillager
+  await seedModelsV2(prisma);
 
   // 1.4: Entwickler-Platzhalter aus bereits vorhandenen Schritt-Anleitungen entfernen
   // (idempotent – betrifft nur Texte mit "TODO:").

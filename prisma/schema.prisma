@@ -681,6 +681,7 @@ model Component {
   unit                   String          @default("Stück")
   stockQty               Int             @default(0)
   minStock               Int             @default(10)
+  active                 Boolean         @default(true) // stillgelegte Altartikel: active=false (Historie bleibt)
   reorderEmail           String?
   lastReorderNotifiedAt  DateTime?
   supplierId             String?

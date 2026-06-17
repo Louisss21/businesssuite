@@ -23,6 +23,7 @@ export const componentUpdateSchema = z.object({
   minStock: z.coerce.number().int().min(0).optional(),
   reorderEmail: z.string().email().nullish().or(z.literal("")),
   supplierId: z.string().nullish().or(z.literal("")),
+  active: z.coerce.boolean().optional(),
 });
 
 function mapUniqueError(e: unknown): never {
@@ -45,16 +46,20 @@ export function level(stockQty: number, minStock: number): StockLevel {
 }
 
 export const componentService = {
-  async list(query?: { underMin?: boolean; search?: string }) {
+  async list(query?: { underMin?: boolean; search?: string; includeInactive?: boolean }) {
     const all = await prisma.component.findMany({
-      where: query?.search
-        ? {
-            OR: [
-              { name: { contains: query.search, mode: "insensitive" } },
-              { sku: { contains: query.search, mode: "insensitive" } },
-            ],
-          }
-        : undefined,
+      where: {
+        // Standard: nur aktive Artikel; stillgelegte nur auf Wunsch.
+        active: query?.includeInactive ? undefined : true,
+        ...(query?.search
+          ? {
+              OR: [
+                { name: { contains: query.search, mode: "insensitive" } },
+                { sku: { contains: query.search, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
       orderBy: { name: "asc" },
     });
     return query?.underMin ? all.filter((c) => c.stockQty <= c.minStock) : all;
@@ -87,6 +92,7 @@ export const componentService = {
           minStock: d.minStock,
           reorderEmail: d.reorderEmail === undefined ? undefined : d.reorderEmail || null,
           supplierId: d.supplierId === undefined ? undefined : d.supplierId || null,
+          active: d.active,
         },
       });
     } catch (e) {

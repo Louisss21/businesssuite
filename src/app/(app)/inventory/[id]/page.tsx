@@ -44,6 +44,7 @@ export default async function ComponentDetailPage({ params }: { params: { id: st
           reorderEmail: c.reorderEmail,
           supplierId: c.supplierId,
           stockQty: c.stockQty,
+          active: c.active,
         }}
       />
     </>

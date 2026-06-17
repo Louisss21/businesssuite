@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: { underMin?: string };
+  searchParams: { underMin?: string; inactive?: string };
 }) {
   const underMin = searchParams.underMin === "true";
-  const components = await componentService.list({ underMin });
+  const includeInactive = searchParams.inactive === "true";
+  const components = await componentService.list({ underMin, includeInactive });
   const lowCount = (await componentService.list({ underMin: true })).length;
 
   return (
@@ -40,6 +41,12 @@ export default async function InventoryPage({
         >
           Unter Mindestbestand ({lowCount})
         </Link>
+        <Link
+          href={includeInactive ? "/inventory" : "/inventory?inactive=true"}
+          className={`rounded-full px-3 py-1 font-medium ${includeInactive ? "bg-brand-600 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"}`}
+        >
+          Stillgelegte einblenden
+        </Link>
       </div>
 
       <InventoryManager
@@ -50,6 +57,7 @@ export default async function InventoryPage({
           unit: c.unit,
           stockQty: c.stockQty,
           minStock: c.minStock,
+          active: c.active,
         }))}
       />
       {components.length === 0 && (

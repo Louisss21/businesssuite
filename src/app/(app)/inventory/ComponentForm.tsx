@@ -14,6 +14,7 @@ export type ComponentEdit = {
   reorderEmail: string | null;
   supplierId: string | null;
   stockQty: number;
+  active: boolean;
 };
 
 export function ComponentForm({
@@ -32,6 +33,7 @@ export function ComponentForm({
   const [minStock, setMinStock] = useState(String(component?.minStock ?? 10));
   const [reorderEmail, setReorderEmail] = useState(component?.reorderEmail ?? "");
   const [supplierId, setSupplierId] = useState(component?.supplierId ?? "");
+  const [active, setActive] = useState(component?.active ?? true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -44,7 +46,7 @@ export function ComponentForm({
     const res = await fetch(editing ? `/api/components/${component!.id}` : "/api/components", {
       method: editing ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sku, name, description, unit, minStock, reorderEmail, supplierId }),
+      body: JSON.stringify({ sku, name, description, unit, minStock, reorderEmail, supplierId, active }),
     });
     const j = await res.json().catch(() => ({}));
     setBusy(false);
@@ -100,10 +102,22 @@ export function ComponentForm({
         </Field>
 
         {editing && (
-          <p className="text-xs text-slate-500">
-            Aktueller Bestand: <strong>{component!.stockQty} {component!.unit}</strong> – Änderung
-            erfolgt nachvollziehbar über „Buchen" im Lager (nicht hier).
-          </p>
+          <>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 accent-brand-600"
+              />
+              Aktiv (stillgelegte Bauteile bleiben für die Historie erhalten, sind aber nicht mehr
+              auswählbar)
+            </label>
+            <p className="text-xs text-slate-500">
+              Aktueller Bestand: <strong>{component!.stockQty} {component!.unit}</strong> – Änderung
+              erfolgt nachvollziehbar über „Buchen" im Lager (nicht hier).
+            </p>
+          </>
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}

@@ -20,6 +20,7 @@ export interface ComponentRow {
   unit: string;
   stockQty: number;
   minStock: number;
+  active: boolean;
 }
 
 function levelBadge(stockQty: number, minStock: number) {
@@ -97,6 +98,11 @@ function Row({
           <Link href={`/inventory/${c.id}`} className="text-brand-700">
             {c.name}
           </Link>
+          {!c.active && (
+            <span className="ml-2 rounded-badge bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-slate-500">
+              stillgelegt
+            </span>
+          )}
         </Td>
         <Td className="text-right">{c.stockQty} {c.unit}</Td>
         <Td className="text-right">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Table, Th, Td, Input, Button } from "@/components/ui";
 import { useBulkSelection } from "@/components/bulk/useBulkSelection";
@@ -84,7 +85,11 @@ function Row({
           <RowCheckbox checked={selected} onToggle={onToggle} />
         </Td>
         <Td className="font-mono text-xs text-slate-500">{c.sku}</Td>
-        <Td className="font-medium text-slate-900">{c.name}</Td>
+        <Td className="font-medium">
+          <Link href={`/inventory/${c.id}`} className="text-brand-700">
+            {c.name}
+          </Link>
+        </Td>
         <Td className="text-right">{c.stockQty} {c.unit}</Td>
         <Td className="text-right">
           <input

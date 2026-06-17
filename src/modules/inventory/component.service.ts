@@ -1,16 +1,36 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { AppError, notFound } from "@/lib/http";
 import { sendMail } from "@/lib/email";
 import { settingsService } from "@/modules/settings/settings.service";
 
+export const componentCreateSchema = z.object({
+  sku: z.string().trim().min(1, "SKU erforderlich"),
+  name: z.string().trim().min(1, "Name erforderlich"),
+  description: z.string().trim().optional().or(z.literal("")),
+  unit: z.string().trim().default("Stück"),
+  minStock: z.coerce.number().int().min(0).default(10),
+  reorderEmail: z.string().email().optional().or(z.literal("")),
+  supplierId: z.string().optional().or(z.literal("")),
+});
+
 export const componentUpdateSchema = z.object({
+  sku: z.string().trim().min(1).optional(),
   name: z.string().trim().min(1).optional(),
   description: z.string().trim().nullish().or(z.literal("")),
   unit: z.string().trim().optional(),
   minStock: z.coerce.number().int().min(0).optional(),
   reorderEmail: z.string().email().nullish().or(z.literal("")),
+  supplierId: z.string().nullish().or(z.literal("")),
 });
+
+function mapUniqueError(e: unknown): never {
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+    throw new AppError("SKU bereits vergeben.", 409);
+  }
+  throw e;
+}
 
 export const stockAdjustSchema = z.object({
   delta: z.coerce.number().int(),
@@ -49,19 +69,88 @@ export const componentService = {
     return c;
   },
 
+  listSuppliers() {
+    return prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+  },
+
   async update(id: string, input: unknown) {
     await this.getById(id);
     const d = componentUpdateSchema.parse(input);
-    return prisma.component.update({
-      where: { id },
-      data: {
-        name: d.name,
-        description: d.description === undefined ? undefined : d.description || null,
-        unit: d.unit,
-        minStock: d.minStock,
-        reorderEmail: d.reorderEmail === undefined ? undefined : d.reorderEmail || null,
-      },
+    try {
+      return await prisma.component.update({
+        where: { id },
+        data: {
+          sku: d.sku,
+          name: d.name,
+          description: d.description === undefined ? undefined : d.description || null,
+          unit: d.unit,
+          minStock: d.minStock,
+          reorderEmail: d.reorderEmail === undefined ? undefined : d.reorderEmail || null,
+          supplierId: d.supplierId === undefined ? undefined : d.supplierId || null,
+        },
+      });
+    } catch (e) {
+      mapUniqueError(e);
+    }
+  },
+
+  /** Punkt 2: neues Bauteil anlegen (Bestand startet bei 0, Zugang via Wareneingang). */
+  async create(input: unknown) {
+    const d = componentCreateSchema.parse(input);
+    try {
+      return await prisma.component.create({
+        data: {
+          sku: d.sku,
+          name: d.name,
+          description: d.description || null,
+          unit: d.unit,
+          minStock: d.minStock,
+          reorderEmail: d.reorderEmail || null,
+          supplierId: d.supplierId || null,
+          stockQty: 0,
+        },
+      });
+    } catch (e) {
+      mapUniqueError(e);
+    }
+  },
+
+  /** Punkt 2: Bauteil duplizieren – neue eindeutige SKU, Bestand 0. */
+  async duplicate(id: string) {
+    const src = await this.getById(id);
+    return prisma.$transaction(async (tx) => {
+      let candidate = `${src.sku}-COPY`;
+      let i = 1;
+      while (await tx.component.findUnique({ where: { sku: candidate } })) {
+        i += 1;
+        candidate = `${src.sku}-COPY-${i}`;
+      }
+      return tx.component.create({
+        data: {
+          sku: candidate,
+          name: `${src.name} (Kopie)`,
+          description: src.description,
+          unit: src.unit,
+          minStock: src.minStock,
+          reorderEmail: src.reorderEmail,
+          supplierId: src.supplierId,
+          stockQty: 0,
+        },
+      });
     });
+  },
+
+  /** Punkt 2: Löschen nur, wenn das Bauteil in keiner Stückliste referenziert ist. */
+  async remove(id: string) {
+    await this.getById(id);
+    const inBom = await prisma.bomItem.count({ where: { componentId: id } });
+    if (inBom > 0) {
+      throw new AppError(
+        `Bauteil ist in ${inBom} Stücklisten-Position(en) referenziert und kann nicht gelöscht werden. Bitte zuerst aus den Modellen entfernen.`,
+        409,
+      );
+    }
+    return prisma.component.delete({ where: { id } });
   },
 
   /** B3: Mindestbestand für mehrere Bauteile gleichzeitig setzen (kein Löschen im Lager). */

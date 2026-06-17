@@ -17,3 +17,12 @@ export async function GET(req: NextRequest) {
     return fail(e);
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    await requireUser();
+    return ok(await componentService.create(await req.json()), 201);
+  } catch (e) {
+    return fail(e);
+  }
+}

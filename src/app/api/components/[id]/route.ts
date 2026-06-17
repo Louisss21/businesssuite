@@ -22,3 +22,23 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return fail(e);
   }
 }
+
+// Punkt 2: vollständige Bearbeitung
+export async function PUT(req: NextRequest, { params }: Ctx) {
+  try {
+    await requireUser();
+    return ok(await componentService.update(params.id, await req.json()));
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  try {
+    await requireUser();
+    await componentService.remove(params.id);
+    return ok({ success: true });
+  } catch (e) {
+    return fail(e);
+  }
+}

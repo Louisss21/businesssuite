@@ -137,6 +137,12 @@ export const tableModelService = {
     });
   },
 
+  // TODO (Snapshot): Laufende/abgeschlossene ProductionOrders lesen Schritte +
+  // BOM aktuell LIVE aus dem TableModel. Änderungen am Modell wirken sich daher
+  // rückwirkend auf bereits gestartete Aufträge aus. Für echte Unveränderlichkeit
+  // müsste der Auftrag beim Start einen Snapshot seiner Schritte/Mengen erhalten
+  // (eigene Tabelle). Bis dahin: Modelle möglichst nur duplizieren+anpassen,
+  // statt aktiv genutzte Modelle mit laufenden Aufträgen zu verändern.
   async updateStep(stepId: string, input: unknown) {
     const d = stepCreateSchema.partial().parse(input);
     return prisma.productionStep.update({
@@ -155,6 +161,44 @@ export const tableModelService = {
 
   deleteStep(stepId: string) {
     return prisma.productionStep.delete({ where: { id: stepId } });
+  },
+
+  /** Punkt 4: Reihenfolge der Schritte neu setzen (order sauber 1..n). */
+  async reorderSteps(modelId: string, orderedIds: string[]) {
+    await this.getById(modelId);
+    await prisma.$transaction(
+      orderedIds.map((id, idx) =>
+        prisma.productionStep.update({ where: { id }, data: { order: idx + 1 } }),
+      ),
+    );
+    return { ok: true };
+  },
+
+  /** Punkt 4: einen Schritt inkl. seiner Bauteile duplizieren (ans Ende). */
+  async duplicateStep(stepId: string) {
+    const step = await prisma.productionStep.findUnique({
+      where: { id: stepId },
+      include: { bomItems: true },
+    });
+    if (!step) throw notFound("Schritt nicht gefunden");
+    const count = await prisma.productionStep.count({
+      where: { tableModelId: step.tableModelId },
+    });
+    return prisma.productionStep.create({
+      data: {
+        tableModelId: step.tableModelId,
+        order: count + 1,
+        title: `${step.title} (Kopie)`,
+        instruction: step.instruction,
+        videoUrl: step.videoUrl,
+        pdfUrl: step.pdfUrl,
+        requiresInput: step.requiresInput,
+        inputLabel: step.inputLabel,
+        bomItems: {
+          create: step.bomItems.map((b) => ({ componentId: b.componentId, quantity: b.quantity })),
+        },
+      },
+    });
   },
 
   addBom(stepId: string, input: unknown) {

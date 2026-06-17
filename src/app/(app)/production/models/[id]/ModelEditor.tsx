@@ -29,7 +29,10 @@ export function ModelEditor({
 }) {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const ids = steps.map((s) => s.id);
 
   async function call(url: string, method: string, body?: unknown) {
     setBusy(true);
@@ -47,6 +50,14 @@ export function ModelEditor({
     return res.ok;
   }
 
+  async function move(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    if (target < 0 || target >= ids.length) return;
+    const next = [...ids];
+    [next[index], next[target]] = [next[target], next[index]];
+    await call(`/api/table-models/${modelId}/steps/reorder`, "POST", { orderedIds: next });
+  }
+
   async function addStep(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -57,28 +68,72 @@ export function ModelEditor({
     if (ok) setAddOpen(false);
   }
 
+  async function saveStep(stepId: string, e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const ok = await call(`/api/table-models/steps/${stepId}`, "PUT", {
+      ...Object.fromEntries(fd),
+      requiresInput: fd.get("requiresInput") === "on",
+    });
+    if (ok) setEditId(null);
+  }
+
   return (
     <div className="space-y-4">
-      {steps.map((s) => (
+      {steps.map((s, i) => (
         <Card key={s.id} className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="font-semibold text-slate-900">{s.order}. {s.title}</h3>
-              <p className="mt-1 text-sm text-slate-600">{s.instruction}</p>
-              <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-400">
-                {s.videoUrl && <span>🎬 Video</span>}
-                {s.pdfUrl && <span>📄 PDF</span>}
-                {s.requiresInput && <span>✏️ Eingabe: {s.inputLabel}</span>}
+          {editId === s.id ? (
+            <form onSubmit={(e) => saveStep(s.id, e)} className="space-y-3">
+              <Field label="Titel"><Input name="title" defaultValue={s.title} required /></Field>
+              <Field label="Anleitung">
+                <textarea
+                  name="instruction"
+                  defaultValue={s.instruction}
+                  required
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500"
+                />
+              </Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Video-URL"><Input name="videoUrl" defaultValue={s.videoUrl ?? ""} /></Field>
+                <Field label="PDF-URL"><Input name="pdfUrl" defaultValue={s.pdfUrl ?? ""} /></Field>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" name="requiresInput" defaultChecked={s.requiresInput} className="h-4 w-4 rounded border-slate-300" />
+                Pflicht-Eingabe erforderlich
+              </label>
+              <Field label="Bezeichnung der Eingabe"><Input name="inputLabel" defaultValue={s.inputLabel ?? ""} /></Field>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={busy}>Speichern</Button>
+                <Button type="button" variant="ghost" onClick={() => setEditId(null)}>Abbrechen</Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-slate-900">{s.order}. {s.title}</h3>
+                <p className="mt-1 text-sm text-slate-600">{s.instruction}</p>
+                <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-400">
+                  {s.videoUrl && <span>🎬 Video</span>}
+                  {s.pdfUrl && <span>📄 PDF</span>}
+                  {s.requiresInput && <span>✏️ Eingabe: {s.inputLabel}</span>}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button onClick={() => move(i, -1)} disabled={busy || i === 0} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700 disabled:opacity-30" title="Nach oben">▲</button>
+                <button onClick={() => move(i, 1)} disabled={busy || i === steps.length - 1} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700 disabled:opacity-30" title="Nach unten">▼</button>
+                <button onClick={() => setEditId(s.id)} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700" title="Bearbeiten">✎</button>
+                <button onClick={() => call(`/api/table-models/steps/${s.id}/duplicate`, "POST")} disabled={busy} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700" title="Schritt duplizieren">⧉</button>
+                <button
+                  onClick={() => window.confirm("Schritt löschen?") && call(`/api/table-models/steps/${s.id}`, "DELETE")}
+                  className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"
+                  title="Schritt löschen"
+                >
+                  🗑
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => window.confirm("Schritt löschen?") && call(`/api/table-models/steps/${s.id}`, "DELETE")}
-              className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"
-              title="Schritt löschen"
-            >
-              🗑
-            </button>
-          </div>
+          )}
 
           {/* BOM */}
           <div className="mt-3 rounded-lg border border-slate-200">

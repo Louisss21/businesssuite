@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PageHeader, Empty } from "@/components/ui";
+import { PageHeader, Empty, LinkButton } from "@/components/ui";
 import { componentService } from "@/modules/inventory/component.service";
 import { InventoryManager } from "./InventoryManager";
 
@@ -16,7 +16,11 @@ export default async function InventoryPage({
 
   return (
     <>
-      <PageHeader title="Lager" subtitle="Bauteile & Bestände" />
+      <PageHeader
+        title="Lager"
+        subtitle="Bauteile & Bestände"
+        action={<LinkButton href="/inventory/new">+ Neues Bauteil</LinkButton>}
+      />
 
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <Link

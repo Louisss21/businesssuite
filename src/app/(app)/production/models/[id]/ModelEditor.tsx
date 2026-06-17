@@ -25,6 +25,8 @@ export function ModelEditor({
   products,
   productId,
   active,
+  name,
+  description,
 }: {
   modelId: string;
   steps: Step[];
@@ -32,6 +34,8 @@ export function ModelEditor({
   products: { id: string; name: string }[];
   productId: string | null;
   active: boolean;
+  name: string;
+  description: string | null;
 }) {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
@@ -39,6 +43,18 @@ export function ModelEditor({
   const [busy, setBusy] = useState(false);
   const [prod, setProd] = useState(productId ?? "");
   const [act, setAct] = useState(active);
+  const [mname, setMname] = useState(name);
+  const [mdesc, setMdesc] = useState(description ?? "");
+  const [metaSaved, setMetaSaved] = useState(false);
+
+  async function saveMeta() {
+    setMetaSaved(false);
+    const ok = await call(`/api/table-models/${modelId}`, "PUT", {
+      name: mname,
+      description: mdesc,
+    });
+    if (ok) setMetaSaved(true);
+  }
 
   const ids = steps.map((s) => s.id);
 
@@ -88,9 +104,24 @@ export function ModelEditor({
 
   return (
     <div className="space-y-4">
-      {/* Punkt 2.6: Fertigerzeugnis-Zuordnung + Aktiv-Status */}
+      {/* Modell-Stammdaten: Name + Beschreibung editierbar */}
       <Card className="p-5">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Modellname">
+            <Input value={mname} onChange={(e) => { setMname(e.target.value); setMetaSaved(false); }} />
+          </Field>
+          <Field label="Beschreibung">
+            <Input value={mdesc} onChange={(e) => { setMdesc(e.target.value); setMetaSaved(false); }} />
+          </Field>
+          <div className="flex items-end gap-2">
+            <Button onClick={saveMeta} disabled={busy || !mname.trim()}>
+              {busy ? "Speichern…" : "Name/Beschreibung speichern"}
+            </Button>
+            {metaSaved && <span className="pb-2 text-sm text-green-600">✓ gespeichert</span>}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Fertigerzeugnis (wird bei Fertigstellung +1 eingebucht)">
             <Select
               value={prod}

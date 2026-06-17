@@ -43,6 +43,8 @@ export default async function ModelDetailPage({ params }: { params: { id: string
 
       <ModelEditor
         modelId={model.id}
+        name={model.name}
+        description={model.description}
         products={products.map((p) => ({ id: p.id, name: p.name }))}
         productId={model.productId}
         active={model.active}

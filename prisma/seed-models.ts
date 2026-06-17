@@ -107,7 +107,14 @@ async function renameIfExists(prisma: PrismaClient, sku: string, name: string) {
   if (c) await prisma.component.update({ where: { sku }, data: { name } });
 }
 
-async function upsertProduct(prisma: PrismaClient, sku: string, name: string) {
+// Marker in der Modell-Beschreibung -> idempotent, ohne von vom Nutzer bereits
+// angelegten gleichnamigen Modellen ausgetrickst zu werden.
+const MARKER = "SUSTABLE-V2";
+
+/** Vorhandenes Fertigerzeugnis per Name wiederverwenden, sonst neu anlegen. */
+async function getOrCreateProduct(prisma: PrismaClient, name: string, sku: string) {
+  const existing = await prisma.product.findFirst({ where: { name } });
+  if (existing) return existing;
   return prisma.product.upsert({
     where: { sku },
     update: {},
@@ -116,8 +123,9 @@ async function upsertProduct(prisma: PrismaClient, sku: string, name: string) {
 }
 
 export async function seedModelsV2(prisma: PrismaClient): Promise<void> {
-  // Idempotenz: einmalig. "Sustable ONE+" existiert nur nach dieser Migration.
-  const already = await prisma.tableModel.findFirst({ where: { name: "Sustable ONE+" } });
+  // Idempotenz über Marker in der Beschreibung – greift NICHT auf bereits vom
+  // Nutzer angelegte gleichnamige Modelle.
+  const already = await prisma.tableModel.findFirst({ where: { description: { contains: MARKER } } });
   if (already) return;
 
   // 1) Neue Bauteile (aktiv)
@@ -137,17 +145,20 @@ export async function seedModelsV2(prisma: PrismaClient): Promise<void> {
   // 3) Ersetzte Altartikel stilllegen (Historie bleibt)
   await prisma.component.updateMany({ where: { sku: { in: DEACTIVATE } }, data: { active: false } });
 
-  // 4) Fertigerzeugnisse
-  const pOne = await upsertProduct(prisma, "PROD-SUS-ONE", "Sustable ONE");
-  const pOnePlus = await upsertProduct(prisma, "PROD-SUS-ONEPLUS", "Sustable ONE+");
-  const pMini = await upsertProduct(prisma, "PROD-SUS-MINI", "Sustable mini");
+  // 4) Fertigerzeugnisse (vorhandene per Name wiederverwenden)
+  const pOne = await getOrCreateProduct(prisma, "Sustable ONE", "PROD-SUS-ONE");
+  const pOnePlus = await getOrCreateProduct(prisma, "Sustable ONE+", "PROD-SUS-ONEPLUS");
+  const pMini = await getOrCreateProduct(prisma, "Sustable mini", "PROD-SUS-MINI");
 
-  // 5) Altes Modell archivieren (nicht löschen)
-  const old = await prisma.tableModel.findFirst({ where: { name: "Sustable ONE" } });
-  if (old) {
+  // 5) ALLE bestehenden gleichnamigen Modelle archivieren (umbenennen + inaktiv).
+  //    Historie/Aufträge bleiben unangetastet; laufende Aufträge laufen dort weiter.
+  const toArchive = await prisma.tableModel.findMany({
+    where: { name: { in: ["Sustable ONE", "Sustable ONE+", "Sustable mini"] } },
+  });
+  for (const m of toArchive) {
     await prisma.tableModel.update({
-      where: { id: old.id },
-      data: { name: "Sustable ONE (vor Umstellung)", active: false },
+      where: { id: m.id },
+      data: { name: `${m.name} (vor Umstellung)`, active: false },
     });
   }
 
@@ -166,7 +177,7 @@ export async function seedModelsV2(prisma: PrismaClient): Promise<void> {
     await prisma.tableModel.create({
       data: {
         name,
-        description: "12-Schritte-Montage (Kleinteillager gemeinsam)",
+        description: `12-Schritte-Montage (Kleinteillager gemeinsam) · ${MARKER}`,
         productId,
         active: true,
         steps: {

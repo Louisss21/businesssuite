@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Role } from "@/lib/auth";
+import { canAccessApi, canAccessPage } from "@/lib/permissions";
 
 /**
- * Leichtgewichtiger Guard im Edge-Runtime: prüft nur die Existenz des
- * Session-Cookies und leitet sonst auf /login. Die kryptografische
- * Verifikation passiert serverseitig in getCurrentUser() (Node-Runtime).
+ * Zugriffs-Schranke (Edge):
+ *  - prüft Session-Cookie (Auth)
+ *  - setzt rollenbasierte Zugriffskontrolle für Seiten UND API durch
+ *    (Rolle aus der signierten Session; Matrix aus lib/permissions.ts)
+ *
+ * Sicherheits-Backstop: Datenzugriffe verifizieren die Session zusätzlich in
+ * Node (getCurrentUser: HMAC + frische DB-Rolle + active-Check). Die Middleware
+ * ist die Vorab-Schranke und failt im Zweifel offen Richtung Node-Prüfung.
  */
-// Öffentlich (kein Session-Cookie nötig): Login, Health, sowie Cron- und
-// Webhook-Endpunkte – diese authentifizieren sich selbst (CRON_SECRET bzw.
-// WooCommerce-HMAC) und werden von externen Systemen ohne Cookie aufgerufen.
 const PUBLIC = [
   "/login",
   "/api/auth/login",
@@ -16,18 +20,41 @@ const PUBLIC = [
   "/api/webhooks",
 ];
 
+const ROLES: Role[] = ["ADMIN", "SALES", "MARKETING", "WAREHOUSE", "ACCOUNTING", "MEMBER"];
+
+/** Rolle aus dem signierten Cookie lesen (ohne Krypto – Node verifiziert separat). */
+function roleFromToken(token: string): Role | null {
+  const value = token.slice(0, token.lastIndexOf(".")); // HMAC abschneiden
+  const part = value.split("|")[1]; // "userId|ROLE"
+  return part && (ROLES as string[]).includes(part) ? (part as Role) : null;
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (PUBLIC.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
-  const hasSession = req.cookies.has("bs_session");
-  if (!hasSession) {
-    if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
-    }
+  const token = req.cookies.get("bs_session")?.value;
+  const isApi = pathname.startsWith("/api");
+
+  if (!token) {
+    if (isApi) return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
+  }
+
+  // Rollenbasierte Schranke (nur wenn Rolle aus dem Cookie lesbar ist).
+  const role = roleFromToken(token);
+  if (role) {
+    if (isApi) {
+      if (!canAccessApi(role, req.method, pathname)) {
+        return NextResponse.json({ error: "Kein Zugriff (Rolle)" }, { status: 403 });
+      }
+    } else if (!canAccessPage(role, pathname)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/403";
+      return NextResponse.redirect(url);
+    }
   }
 
   // aktuellen Pfad als Header durchreichen -> serverseitiger Rollen-Guard im Layout

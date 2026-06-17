@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SearchPalette } from "@/components/SearchPalette";
+import { accessFor, type ModuleKey } from "@/lib/permissions";
 
 export type Role =
   | "ADMIN"
@@ -17,29 +18,28 @@ interface NavItem {
   href: string;
   label: string;
   icon: string;
-  roles?: Role[]; // undefined = alle Rollen
+  module: ModuleKey;
 }
 
-// Rollenbasierte Sichtbarkeit. ADMIN & MEMBER (Legacy) sehen alles.
+// Navigation; Sichtbarkeit kommt zentral aus lib/permissions (eine Quelle).
 const NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: "▥" },
-  { href: "/crm", label: "CRM / Kunden", icon: "☻", roles: ["SALES", "MARKETING"] },
-  { href: "/leads", label: "Leads", icon: "✦", roles: ["SALES", "MARKETING"] },
-  { href: "/quotes", label: "Angebote", icon: "✎", roles: ["SALES"] },
-  { href: "/orders", label: "Bestellungen", icon: "▤", roles: ["SALES", "ACCOUNTING"] },
-  { href: "/products", label: "Produkte", icon: "▣", roles: ["WAREHOUSE"] },
-  { href: "/production", label: "Produktion", icon: "⚒", roles: ["WAREHOUSE"] },
-  { href: "/inventory", label: "Lager", icon: "▦", roles: ["WAREHOUSE"] },
-  { href: "/invoices", label: "Rechnungen", icon: "₪", roles: ["ACCOUNTING"] },
-  { href: "/billing-archive", label: "Rechnungsarchiv", icon: "🗄", roles: ["ACCOUNTING"] },
-  { href: "/tasks", label: "Aufgaben", icon: "✓", roles: ["SALES"] },
-  { href: "/campaigns", label: "Kampagnen", icon: "✉", roles: ["MARKETING"] },
-  { href: "/settings", label: "Einstellungen", icon: "⚙", roles: [] }, // nur ADMIN/MEMBER
+  { href: "/", label: "Dashboard", icon: "▥", module: "dashboard" },
+  { href: "/crm", label: "CRM / Kunden", icon: "☻", module: "crm" },
+  { href: "/leads", label: "Leads", icon: "✦", module: "leads" },
+  { href: "/quotes", label: "Angebote", icon: "✎", module: "quotes" },
+  { href: "/orders", label: "Bestellungen", icon: "▤", module: "orders" },
+  { href: "/products", label: "Produkte", icon: "▣", module: "products" },
+  { href: "/production", label: "Produktion", icon: "⚒", module: "production" },
+  { href: "/inventory", label: "Lager", icon: "▦", module: "inventory" },
+  { href: "/invoices", label: "Rechnungen", icon: "₪", module: "invoices" },
+  { href: "/billing-archive", label: "Rechnungsarchiv", icon: "🗄", module: "billing-archive" },
+  { href: "/tasks", label: "Aufgaben", icon: "✓", module: "tasks" },
+  { href: "/campaigns", label: "Kampagnen", icon: "✉", module: "campaigns" },
+  { href: "/settings", label: "Einstellungen", icon: "⚙", module: "settings" },
 ];
 
 function visibleFor(role: Role): NavItem[] {
-  if (role === "ADMIN" || role === "MEMBER") return NAV;
-  return NAV.filter((i) => !i.roles || i.roles.includes(role));
+  return NAV.filter((i) => accessFor(role, i.module) !== "none");
 }
 
 /** Sustable Horizon-Logo + Wortmarke. */

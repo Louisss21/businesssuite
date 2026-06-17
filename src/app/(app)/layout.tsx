@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getCurrentUser } from "@/lib/auth";
-import { canAccessPath } from "@/lib/access";
+import { canAccessPage } from "@/lib/permissions";
 import { AppShell, type Role } from "@/components/AppShell";
 
 export default async function AppLayout({
@@ -12,9 +12,9 @@ export default async function AppLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  // Rollenbasierter Routenschutz (Pfad kommt aus der Middleware)
+  // Rollenbasierter Routenschutz (Pfad aus der Middleware; frische DB-Rolle)
   const pathname = headers().get("x-pathname") ?? "/";
-  if (!canAccessPath(user.role, pathname)) redirect("/");
+  if (!canAccessPage(user.role, pathname)) redirect("/403");
 
   return (
     <AppShell

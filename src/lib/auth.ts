@@ -53,8 +53,11 @@ function unsign(token: string): string | null {
   return value;
 }
 
-export function createSession(userId: string) {
-  cookies().set(COOKIE, sign(userId), {
+export function createSession(userId: string, role: Role) {
+  // Rolle wird mitsigniert, damit die (Edge-)Middleware sie ohne DB-Zugriff
+  // auswerten kann. Maßgeblich für Datenzugriffe bleibt die frische DB-Rolle
+  // aus getCurrentUser() (Node) – die Middleware ist nur die Vorab-Schranke.
+  cookies().set(COOKIE, sign(`${userId}|${role}`), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -70,14 +73,19 @@ export function destroySession() {
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = cookies().get(COOKIE)?.value;
   if (!token) return null;
-  const userId = unsign(token);
+  const value = unsign(token);
+  if (!value) return null;
+  // value = "userId" (Legacy) oder "userId|ROLE"
+  const userId = value.split("|")[0];
   if (!userId) return null;
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, email: true, name: true, role: true, active: true },
   });
-  return user;
+  // Inaktive Nutzer erhalten keine gültige Session (serverseitig erzwungen).
+  if (!user || !user.active) return null;
+  return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
 
 /** In Services/API: wirft 401, wenn kein eingeloggter User vorhanden ist. */

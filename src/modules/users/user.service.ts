@@ -52,6 +52,18 @@ export const userService = {
       throw new AppError("Du kannst dein eigenes Konto nicht deaktivieren oder herabstufen.");
     }
 
+    // Selbst-Aussperr-Schutz: der letzte aktive ADMIN darf nicht deaktiviert
+    // oder herabgestuft werden (sonst kommt niemand mehr in die Einstellungen).
+    const willLoseAdmin = data.active === false || (data.role !== undefined && data.role !== "ADMIN");
+    if (target.role === "ADMIN" && target.active && willLoseAdmin) {
+      const activeAdmins = await prisma.user.count({ where: { role: "ADMIN", active: true } });
+      if (activeAdmins <= 1) {
+        throw new AppError(
+          "Der letzte aktive Administrator kann nicht deaktiviert oder herabgestuft werden.",
+        );
+      }
+    }
+
     return prisma.user.update({
       where: { id },
       data: {
@@ -67,6 +79,15 @@ export const userService = {
   async delete(id: string, currentUserId: string) {
     if (id === currentUserId) {
       throw new AppError("Du kannst dein eigenes Konto nicht löschen.");
+    }
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) throw notFound("Benutzer nicht gefunden");
+    // Selbst-Aussperr-Schutz: letzten aktiven ADMIN nicht löschen.
+    if (target.role === "ADMIN" && target.active) {
+      const activeAdmins = await prisma.user.count({ where: { role: "ADMIN", active: true } });
+      if (activeAdmins <= 1) {
+        throw new AppError("Der letzte aktive Administrator kann nicht gelöscht werden.");
+      }
     }
     await prisma.user.delete({ where: { id } });
     return { success: true };

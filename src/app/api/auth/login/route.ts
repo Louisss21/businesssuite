@@ -13,7 +13,10 @@ export async function POST(req: NextRequest) {
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
       throw new AppError("E-Mail oder Passwort falsch.", 401);
     }
-    createSession(user.id);
+    if (!user.active) {
+      throw new AppError("Dieses Konto ist deaktiviert. Bitte an einen Administrator wenden.", 403);
+    }
+    createSession(user.id, user.role);
     return ok({ id: user.id, email: user.email, name: user.name, role: user.role });
   } catch (e) {
     return fail(e);

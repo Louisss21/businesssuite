@@ -26,6 +26,7 @@ export const userInviteSchema = z.object({
 });
 
 export const userUpdateSchema = z.object({
+  email: z.string().email("Gültige E-Mail erforderlich").optional(),
   name: z.string().trim().min(1).optional(),
   role: z.enum(userRoles).optional(),
   active: z.coerce.boolean().optional(),

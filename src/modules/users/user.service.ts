@@ -64,16 +64,24 @@ export const userService = {
       }
     }
 
-    return prisma.user.update({
-      where: { id },
-      data: {
-        name: data.name,
-        role: data.role,
-        active: data.active,
-        passwordHash: data.password ? await hashPassword(data.password) : undefined,
-      },
-      select: publicSelect,
-    });
+    try {
+      return await prisma.user.update({
+        where: { id },
+        data: {
+          email: data.email ? data.email.toLowerCase() : undefined,
+          name: data.name,
+          role: data.role,
+          active: data.active,
+          passwordHash: data.password ? await hashPassword(data.password) : undefined,
+        },
+        select: publicSelect,
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        throw new AppError("E-Mail ist bereits vergeben.", 409);
+      }
+      throw e;
+    }
   },
 
   async delete(id: string, currentUserId: string) {

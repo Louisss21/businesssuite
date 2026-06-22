@@ -6,16 +6,22 @@ import { seedModelsV2 } from "./seed-models";
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
-  const password = process.env.SEED_ADMIN_PASSWORD ?? "admin1234";
-
-  // Admin
-  const passwordHash = await bcrypt.hash(password, 10);
-  await prisma.user.upsert({
-    where: { email },
-    update: {},
-    create: { email, name: "Administrator", passwordHash, role: "ADMIN" },
-  });
+  // Bootstrap-Admin NUR anlegen, wenn noch gar kein Admin existiert.
+  // (Kein erneutes Anlegen eines umbenannten Admins; keine Zugangsdaten im Repo.)
+  const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+  if (adminCount === 0) {
+    const bootstrapEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
+    const bootstrapPw = process.env.SEED_ADMIN_PASSWORD; // bewusst KEIN Default im Code
+    const passwordHash = bootstrapPw ? await bcrypt.hash(bootstrapPw, 10) : "";
+    await prisma.user.create({
+      data: { email: bootstrapEmail, name: "Administrator", passwordHash, role: "ADMIN" },
+    });
+    console.log(
+      bootstrapPw
+        ? `Bootstrap-Admin angelegt: ${bootstrapEmail}`
+        : `Bootstrap-Admin ${bootstrapEmail} ohne Passwort – bitte SEED_ADMIN_PASSWORD setzen oder im UI ein Passwort vergeben.`,
+    );
+  }
 
   // Firmen-Settings
   await prisma.companySettings.upsert({
@@ -69,9 +75,8 @@ async function main() {
   }
   if (todoSteps.length) console.log(`  Bereinigt: ${todoSteps.length} Schritt(e) mit TODO-Platzhalter`);
 
-  console.log("Seed fertig:");
-  console.log(`  Login: ${email} / ${password}`);
-  console.log(`  Kunde: ${customer.companyName}`);
+  console.log("Seed fertig.");
+  console.log(`  Beispielkunde: ${customer.companyName}`);
 }
 
 main()

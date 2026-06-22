@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Field, Input, Select, Table, Th, Td } from "@/components/ui";
 
@@ -25,6 +25,32 @@ export function UserManager({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+
+  function startEdit(u: UserRow) {
+    setEditId(u.id);
+    setEditEmail(u.email);
+    setEditPassword("");
+  }
+
+  async function saveEdit(id: string) {
+    const body: Record<string, unknown> = { email: editEmail };
+    if (editPassword) body.password = editPassword;
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      setEditId(null);
+      router.refresh();
+    } else {
+      const b = await res.json().catch(() => ({}));
+      window.alert(b.error ?? "Speichern fehlgeschlagen");
+    }
+  }
 
   async function invite(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -129,7 +155,8 @@ export function UserManager({
           {users.map((u) => {
             const isSelf = u.id === currentUserId;
             return (
-              <tr key={u.id}>
+              <Fragment key={u.id}>
+              <tr>
                 <Td className="font-medium text-slate-900">
                   {u.name} {isSelf && <span className="text-xs text-slate-400">(du)</span>}
                 </Td>
@@ -162,18 +189,47 @@ export function UserManager({
                   </button>
                 </Td>
                 <Td className="text-right">
-                  {!isSelf && (
+                  <div className="flex items-center justify-end gap-1">
                     <button
                       type="button"
-                      onClick={() => remove(u.id, u.name)}
-                      title="Löschen"
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => startEdit(u)}
+                      title="E-Mail / Passwort ändern"
+                      className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-700"
                     >
-                      🗑
+                      ✎
                     </button>
-                  )}
+                    {!isSelf && (
+                      <button
+                        type="button"
+                        onClick={() => remove(u.id, u.name)}
+                        title="Löschen"
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                 </Td>
               </tr>
+              {editId === u.id && (
+                <tr>
+                  <td colSpan={5} className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="text-xs text-slate-600">
+                        <span className="mb-1 block">E-Mail</span>
+                        <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-64" />
+                      </label>
+                      <label className="text-xs text-slate-600">
+                        <span className="mb-1 block">Neues Passwort (optional)</span>
+                        <Input type="text" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="min. 6 Zeichen" className="w-56" />
+                      </label>
+                      <Button onClick={() => saveEdit(u.id)}>Speichern</Button>
+                      <Button variant="ghost" onClick={() => setEditId(null)}>Abbrechen</Button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             );
           })}
         </tbody>

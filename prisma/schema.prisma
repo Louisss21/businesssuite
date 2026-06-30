@@ -464,6 +464,10 @@ model CompanySettings {
   defaultTaxRate         Decimal @default(19) @db.Decimal(5, 2)
   invoiceFooter          String  @default("Vielen Dank für Ihren Auftrag.")
 
+  // Abteilungs-/Rollen-spezifische PDF-Fußzeilen: { "SALES": "...", "ACCOUNTING": "..." }
+  // Leer/fehlt -> Fallback auf invoiceFooter. Erstellerrolle bestimmt den Text.
+  roleFooters            Json?
+
   updatedAt DateTime @updatedAt
 
   @@map("company_settings")

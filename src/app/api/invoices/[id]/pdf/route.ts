@@ -10,8 +10,8 @@ export const maxDuration = 60;
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
-    const pdf = await generateInvoicePdf(params.id);
+    const user = await requireUser();
+    const pdf = await generateInvoicePdf(params.id, user.role);
     return new Response(new Uint8Array(pdf.buffer), {
       headers: {
         "Content-Type": "application/pdf",

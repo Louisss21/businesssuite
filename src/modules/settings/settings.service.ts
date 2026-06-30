@@ -54,4 +54,31 @@ export const settingsService = {
       create: { id: SINGLETON, logoUrl },
     });
   },
+
+  /** Abteilungs-/Rollen-Fußzeilen speichern (leere Werte werden verworfen). */
+  async setRoleFooters(footers: Record<string, string>) {
+    const clean: Record<string, string> = {};
+    for (const [role, text] of Object.entries(footers)) {
+      const t = (text ?? "").trim();
+      if (t) clean[role] = t;
+    }
+    return prisma.companySettings.upsert({
+      where: { id: SINGLETON },
+      update: { roleFooters: clean },
+      create: { id: SINGLETON, roleFooters: clean },
+    });
+  },
 };
+
+/** Liefert die Fußzeile für die Rolle des Erstellers (Fallback: globale Fußzeile). */
+export function footerForRole(
+  settings: { roleFooters?: unknown; invoiceFooter: string },
+  role?: string | null,
+): string {
+  const map =
+    settings.roleFooters && typeof settings.roleFooters === "object"
+      ? (settings.roleFooters as Record<string, string>)
+      : {};
+  const specific = role ? (map[role] ?? "").trim() : "";
+  return specific || settings.invoiceFooter || "Vielen Dank für Ihren Auftrag.";
+}

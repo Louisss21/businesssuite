@@ -16,16 +16,17 @@ export async function sendDocument(opts: {
   id: string;
   to: string;
   type?: OrderPdfType;
+  role?: string | null;
 }) {
-  const { kind, id, to } = opts;
+  const { kind, id, to, role } = opts;
   if (!to || !to.includes("@")) throw new AppError("Gültige Empfängeradresse erforderlich.", 422);
 
   const pdf =
     kind === "invoice"
-      ? await generateInvoicePdf(id)
+      ? await generateInvoicePdf(id, role)
       : kind === "quote"
-        ? await generateQuotePdf(id)
-        : await generateOrderPdf(id, opts.type ?? "confirmation");
+        ? await generateQuotePdf(id, role)
+        : await generateOrderPdf(id, opts.type ?? "confirmation", role);
 
   const settings = await settingsService.get();
   const subject = `${pdf.docLabel} ${pdf.number}${settings.companyName ? ` – ${settings.companyName}` : ""}`;

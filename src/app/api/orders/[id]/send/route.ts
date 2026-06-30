@@ -15,9 +15,9 @@ const schema = z.object({
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const { to, type } = schema.parse(await req.json());
-    return ok(await sendDocument({ kind: "order", id: params.id, to, type }));
+    return ok(await sendDocument({ kind: "order", id: params.id, to, type, role: user.role }));
   } catch (e) {
     return fail(e);
   }

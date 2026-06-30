@@ -13,10 +13,10 @@ const VALID: OrderPdfType[] = ["confirmation", "deliverynote", "quote"];
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const q = req.nextUrl.searchParams.get("type") ?? "confirmation";
     const type: OrderPdfType = (VALID as string[]).includes(q) ? (q as OrderPdfType) : "confirmation";
-    const pdf = await generateOrderPdf(params.id, type);
+    const pdf = await generateOrderPdf(params.id, type, user.role);
     return new Response(new Uint8Array(pdf.buffer), {
       headers: {
         "Content-Type": "application/pdf",

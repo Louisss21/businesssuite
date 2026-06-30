@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { invoiceService } from "@/modules/invoices/invoice.service";
 import { quoteService } from "@/modules/quotes/quote.service";
 import { orderService } from "@/modules/orders/order.service";
-import { settingsService } from "@/modules/settings/settings.service";
+import { settingsService, footerForRole } from "@/modules/settings/settings.service";
 import { displayName } from "@/modules/crm/customer.service";
 import { loadLogoDataUri } from "@/modules/shared/pdf-logo";
 import { computeQuoteItem } from "@/modules/quotes/quote.schema";
@@ -35,7 +35,7 @@ async function render(element: unknown): Promise<Buffer> {
   return buf;
 }
 
-export async function generateInvoicePdf(id: string): Promise<RenderedPdf> {
+export async function generateInvoicePdf(id: string, role?: string | null): Promise<RenderedPdf> {
   const [invoice, settings] = await Promise.all([invoiceService.getById(id), settingsService.get()]);
   const logoDataUri = await loadLogoDataUri(settings.logoUrl);
   const data: InvoicePdfData = {
@@ -58,7 +58,7 @@ export async function generateInvoicePdf(id: string): Promise<RenderedPdf> {
       bankName: settings.bankName,
       iban: settings.iban,
       bic: settings.bic,
-      footer: settings.invoiceFooter,
+      footer: footerForRole(settings, role),
       logoDataUri,
     },
     customer: {
@@ -88,7 +88,7 @@ export async function generateInvoicePdf(id: string): Promise<RenderedPdf> {
   };
 }
 
-export async function generateQuotePdf(id: string): Promise<RenderedPdf> {
+export async function generateQuotePdf(id: string, role?: string | null): Promise<RenderedPdf> {
   const [quote, settings] = await Promise.all([quoteService.getById(id), settingsService.get()]);
   const logoDataUri = await loadLogoDataUri(settings.logoUrl);
   const data: QuotePdfData = {
@@ -108,7 +108,7 @@ export async function generateQuotePdf(id: string): Promise<RenderedPdf> {
       phone: settings.phone,
       taxNumber: settings.taxNumber,
       vatId: settings.vatId,
-      footer: settings.invoiceFooter,
+      footer: footerForRole(settings, role),
       logoDataUri,
     },
     customer: {
@@ -152,7 +152,7 @@ const ORDER_TYPES: Record<OrderPdfType, { title: string; showPrices: boolean }> 
   deliverynote: { title: "Lieferschein", showPrices: false },
 };
 
-export async function generateOrderPdf(id: string, type: OrderPdfType): Promise<RenderedPdf> {
+export async function generateOrderPdf(id: string, type: OrderPdfType, role?: string | null): Promise<RenderedPdf> {
   const cfg = ORDER_TYPES[type];
   const [order, settings] = await Promise.all([orderService.getById(id), settingsService.get()]);
   const logoDataUri = await loadLogoDataUri(settings.logoUrl);
@@ -176,7 +176,7 @@ export async function generateOrderPdf(id: string, type: OrderPdfType): Promise<
       phone: settings.phone,
       taxNumber: settings.taxNumber,
       vatId: settings.vatId,
-      footer: settings.invoiceFooter,
+      footer: footerForRole(settings, role),
       logoDataUri,
     },
     customer: {

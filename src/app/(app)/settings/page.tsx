@@ -4,6 +4,7 @@ import { SettingsForm } from "./SettingsForm";
 import { SettingsTabs } from "./SettingsTabs";
 import { LogoUpload } from "./LogoUpload";
 import { TestReorderButton } from "./TestReorderButton";
+import { RoleFootersForm } from "./RoleFootersForm";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,10 @@ export default async function SettingsPage() {
       <PageHeader title="Einstellungen" subtitle="Stammdaten & Systemkonfiguration" />
       <SettingsTabs active="general" />
       <LogoUpload initialUrl={s.logoUrl} />
+      <RoleFootersForm
+        initial={(s.roleFooters as unknown as Record<string, string> | null) ?? {}}
+        globalFooter={s.invoiceFooter}
+      />
       <TestReorderButton />
       <SettingsForm initial={initial} />
     </>

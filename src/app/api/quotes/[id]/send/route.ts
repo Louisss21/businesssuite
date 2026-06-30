@@ -12,9 +12,9 @@ const schema = z.object({ to: z.string().email("Gültige E-Mail erforderlich") }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const { to } = schema.parse(await req.json());
-    return ok(await sendDocument({ kind: "quote", id: params.id, to }));
+    return ok(await sendDocument({ kind: "quote", id: params.id, to, role: user.role }));
   } catch (e) {
     return fail(e);
   }

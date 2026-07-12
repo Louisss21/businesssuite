@@ -771,6 +771,24 @@ model ProductionStepLog {
   @@map("production_step_logs")
 }
 
+// ----------------------------------------------------------------------------
+//  System-Assistent (Chatbot): Audit-Log aller ausgeführten Aktionen
+// ----------------------------------------------------------------------------
+
+model AssistantLog {
+  id        String   @id @default(cuid())
+  userId    String
+  userRole  String
+  tool      String
+  args      Json
+  result    String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("assistant_logs")
+}
+
 model StockMovement {
   id          String       @id @default(cuid())
   componentId String

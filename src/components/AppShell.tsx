@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SearchPalette } from "@/components/SearchPalette";
+import { AssistantWidget } from "@/components/AssistantWidget";
 import { accessFor, type ModuleKey } from "@/lib/permissions";
 
 export type Role =
@@ -183,6 +184,9 @@ export function AppShell({
           <div className="mx-auto max-w-6xl">{children}</div>
         </main>
       </div>
+
+      {/* System-Assistent (Chatbot) */}
+      <AssistantWidget />
     </div>
   );
 }

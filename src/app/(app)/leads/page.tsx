@@ -1,5 +1,4 @@
 import { PageHeader, LinkButton } from "@/components/ui";
-import { getCurrentUser } from "@/lib/auth";
 import { leadService } from "@/modules/crm/lead.service";
 import { customerService, displayName } from "@/modules/crm/customer.service";
 import { userService } from "@/modules/users/user.service";
@@ -14,8 +13,7 @@ export default async function LeadsPage({
 }: {
   searchParams?: { assigned?: string; status?: string };
 }) {
-  const [me, leads, customers, users] = await Promise.all([
-    getCurrentUser(),
+  const [leads, customers, users] = await Promise.all([
     leadService.list({ status: searchParams?.status || undefined }),
     customerService.list(),
     userService.list(),
@@ -30,12 +28,11 @@ export default async function LeadsPage({
   // damit alte Zuweisungen weiterhin lesbar bleiben).
   const userNames = new Map(users.map((u) => [u.id, u.name]));
 
-  // Zuständigkeits-Filter: "me" = eigene Leads, "none" = ohne Zuweisung,
-  // sonst konkrete Nutzer-ID. Status filtert bereits der Service.
+  // Zuständigkeits-Filter: "none" = ohne Zuweisung, sonst konkrete
+  // Nutzer-ID. Status filtert bereits der Service.
   const assigned = searchParams?.assigned;
   const filtered = leads.filter((l) => {
     if (!assigned) return true;
-    if (assigned === "me") return l.assignedUserId === me?.id;
     if (assigned === "none") return !l.assignedUserId;
     return l.assignedUserId === assigned;
   });

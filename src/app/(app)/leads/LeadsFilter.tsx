@@ -47,7 +47,6 @@ export function LeadsFilter({
         className={selectCls}
       >
         <option value="">Alle Zuständigen</option>
-        <option value="me">Meine Leads</option>
         <option value="none">Ohne Zuweisung</option>
         {users.map((u) => (
           <option key={u.id} value={u.id}>

@@ -40,6 +40,21 @@ async function main() {
     data: { name: "Louis Müller" },
   });
 
+  // Duplikat-Bereinigung: "Louis Müller" existiert nur einmal sichtbar –
+  // alle weiteren aktiven Konten mit diesem Namen (≠ sales@sustable.eu)
+  // werden deaktiviert.
+  const dupLouis = await prisma.user.updateMany({
+    where: {
+      name: { equals: "Louis Müller", mode: "insensitive" },
+      active: true,
+      NOT: { email: "sales@sustable.eu" },
+    },
+    data: { active: false },
+  });
+  if (dupLouis.count > 0) {
+    console.log(`Doppelte Louis-Müller-Konten deaktiviert: ${dupLouis.count}`);
+  }
+
   // Firmen-Settings
   await prisma.companySettings.upsert({
     where: { id: "singleton" },

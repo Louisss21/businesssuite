@@ -55,6 +55,40 @@ async function main() {
     console.log(`Doppelte Louis-Müller-Konten deaktiviert: ${dupLouis.count}`);
   }
 
+  // Zuweisungen der deaktivierten Louis-Müller-Duplikate auf das echte Konto
+  // umhängen. Ohne das zeigen die Auswahllisten den inaktiven Nutzer als
+  // Zusatzoption an – also zweimal 'Louis Müller' ohne Unterscheidung.
+  // Idempotent: nach dem Lauf verweist nichts mehr auf die Duplikat-IDs.
+  const canonicalLouis = await prisma.user.findUnique({
+    where: { email: "sales@sustable.eu" },
+    select: { id: true },
+  });
+  if (canonicalLouis) {
+    const staleLouis = await prisma.user.findMany({
+      where: {
+        name: { equals: "Louis Müller", mode: "insensitive" },
+        NOT: { email: "sales@sustable.eu" },
+      },
+      select: { id: true },
+    });
+    const staleIds = staleLouis.map((u) => u.id);
+    if (staleIds.length > 0) {
+      const movedLeads = await prisma.lead.updateMany({
+        where: { assignedUserId: { in: staleIds } },
+        data: { assignedUserId: canonicalLouis.id },
+      });
+      const movedTasks = await prisma.task.updateMany({
+        where: { assignedToId: { in: staleIds } },
+        data: { assignedToId: canonicalLouis.id },
+      });
+      if (movedLeads.count > 0 || movedTasks.count > 0) {
+        console.log(
+          `Zuweisungen auf das echte Louis-Konto umgehaengt: ${movedLeads.count} Lead(s), ${movedTasks.count} Aufgabe(n)`,
+        );
+      }
+    }
+  }
+
   // Firmen-Settings
   await prisma.companySettings.upsert({
     where: { id: "singleton" },

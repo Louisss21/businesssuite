@@ -19,6 +19,10 @@ export default async function LeadsPage() {
     .filter((u) => u.active)
     .map((u) => ({ id: u.id, name: u.name }));
 
+  // Namensauflösung für die Zuständig-Spalte (inkl. inaktiver Nutzer,
+  // damit alte Zuweisungen weiterhin lesbar bleiben).
+  const userNames = new Map(users.map((u) => [u.id, u.name]));
+
   const rows: LeadRow[] = leads.map((l) => ({
     id: l.id,
     title: l.title,
@@ -30,6 +34,7 @@ export default async function LeadsPage() {
       l.email ||
       "—",
     customerName: l.customer ? displayName(l.customer) : null,
+    assignedName: l.assignedUserId ? (userNames.get(l.assignedUserId) ?? "Unbekannt") : null,
   }));
 
   return (

@@ -69,6 +69,7 @@ export const leadService = {
         tags: d.tags === undefined ? undefined : splitTags(d.tags),
         source: d.source === undefined ? undefined : orNull(d.source),
         lostReason: d.lostReason === undefined ? undefined : orNull(d.lostReason),
+        assignedUserId: d.assignedUserId === undefined ? undefined : orNull(d.assignedUserId),
         customerId:
           d.customerId === undefined ? undefined : d.customerId ? d.customerId : null,
       },

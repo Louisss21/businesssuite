@@ -21,10 +21,17 @@ export interface LeadScalars {
   tags: string[];
   source: string | null;
   lostReason: string | null;
+  assignedUserId: string | null;
   customerId: string | null;
 }
 
-export function LeadDetailForm({ lead }: { lead: LeadScalars }) {
+export function LeadDetailForm({
+  lead,
+  users,
+}: {
+  lead: LeadScalars;
+  users: { id: string; name: string }[];
+}) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -140,6 +147,16 @@ export function LeadDetailForm({ lead }: { lead: LeadScalars }) {
           </Field>
           <Field label="Quelle">
             <Input name="source" defaultValue={v(lead.source)} />
+          </Field>
+          <Field label="Zuständig">
+            <Select name="assignedUserId" defaultValue={v(lead.assignedUserId)}>
+              <option value="">— niemand —</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label="Tags (Komma-getrennt)">
             <Input name="tags" defaultValue={lead.tags.join(", ")} />

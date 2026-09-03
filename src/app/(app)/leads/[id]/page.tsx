@@ -6,6 +6,7 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { TaskQuickAdd } from "@/components/TaskQuickAdd";
 import { ActivityTimeline } from "@/components/ActivityTimeline";
 import { activityService } from "@/modules/activities/activity.service";
+import { userService } from "@/modules/users/user.service";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,13 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
   const lead = await leadService.getById(params.id).catch(() => null);
   if (!lead) notFound();
 
-  const activities = await activityService.list({ leadId: lead.id });
+  const [activities, users] = await Promise.all([
+    activityService.list({ leadId: lead.id }),
+    userService.list(),
+  ]);
+  const userOptions = users
+    .filter((u) => u.active || u.id === lead.assignedUserId)
+    .map((u) => ({ id: u.id, name: u.name }));
 
   return (
     <>
@@ -48,8 +55,10 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
           tags: lead.tags,
           source: lead.source,
           lostReason: lead.lostReason,
+          assignedUserId: lead.assignedUserId,
           customerId: lead.customerId,
         }}
+        users={userOptions}
       />
       <div className="mt-6">
         <h3 className="mb-2 text-sm font-semibold text-slate-900">Aufgaben</h3>

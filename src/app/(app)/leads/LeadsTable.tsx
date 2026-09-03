@@ -23,6 +23,7 @@ export type LeadRow = {
   score: number;
   contact: string;
   customerName: string | null;
+  assignedName: string | null;
 };
 
 const STATUS_OPTIONS = [
@@ -117,6 +118,7 @@ export function LeadsTable({
             <Th>Titel</Th>
             <Th>Kontakt</Th>
             <Th>Kunde</Th>
+            <Th>Zuständig</Th>
             <Th className="text-right">Score</Th>
             <Th>Status</Th>
             <Th className="text-right">Aktionen</Th>
@@ -138,6 +140,7 @@ export function LeadsTable({
               </Td>
               <Td className="text-slate-600">{l.contact}</Td>
               <Td>{l.customerName ?? "—"}</Td>
+              <Td className="text-slate-600">{l.assignedName ?? "—"}</Td>
               <Td className="text-right">{l.score}</Td>
               <Td>
                 <LeadStatusSelect id={l.id} status={l.status} />

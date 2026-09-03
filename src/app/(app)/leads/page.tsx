@@ -34,6 +34,7 @@ export default async function LeadsPage() {
       l.email ||
       "—",
     customerName: l.customer ? displayName(l.customer) : null,
+    assignedUserId: l.assignedUserId,
     assignedName: l.assignedUserId ? (userNames.get(l.assignedUserId) ?? "Unbekannt") : null,
   }));
 

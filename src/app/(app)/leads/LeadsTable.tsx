@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Table, Th, Td, Empty } from "@/components/ui";
 import { DeleteButton } from "@/components/DeleteButton";
 import { LeadStatusSelect } from "./LeadStatusSelect";
+import { LeadAssigneeSelect } from "./LeadAssigneeSelect";
 import { useBulkSelection } from "@/components/bulk/useBulkSelection";
 import {
   BulkToolbar,
@@ -23,6 +24,7 @@ export type LeadRow = {
   score: number;
   contact: string;
   customerName: string | null;
+  assignedUserId: string | null;
   assignedName: string | null;
 };
 
@@ -140,7 +142,14 @@ export function LeadsTable({
               </Td>
               <Td className="text-slate-600">{l.contact}</Td>
               <Td>{l.customerName ?? "—"}</Td>
-              <Td className="text-slate-600">{l.assignedName ?? "—"}</Td>
+              <Td>
+                <LeadAssigneeSelect
+                  id={l.id}
+                  assignedUserId={l.assignedUserId}
+                  assignedName={l.assignedName}
+                  users={users}
+                />
+              </Td>
               <Td className="text-right">{l.score}</Td>
               <Td>
                 <LeadStatusSelect id={l.id} status={l.status} />

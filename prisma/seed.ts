@@ -23,6 +23,23 @@ async function main() {
     );
   }
 
+  // Aufräumen: RBAC-Testkonten aus den Auswahllisten nehmen (deaktivieren,
+  // nicht löschen – Verweise in Aufgaben/Leads bleiben nachvollziehbar).
+  const testAccounts = await prisma.user.updateMany({
+    where: { email: { endsWith: "@sustable-test.de" }, active: true },
+    data: { active: false },
+  });
+  if (testAccounts.count > 0) {
+    console.log(`Testkonten deaktiviert: ${testAccounts.count}`);
+  }
+
+  // Admin-Konto: generischen Namen einmalig auf den echten Namen setzen
+  // (nur falls noch "Administrator" – manuelle Umbenennungen bleiben unberührt).
+  await prisma.user.updateMany({
+    where: { email: "sales@sustable.eu", name: "Administrator" },
+    data: { name: "Louis Müller" },
+  });
+
   // Firmen-Settings
   await prisma.companySettings.upsert({
     where: { id: "singleton" },

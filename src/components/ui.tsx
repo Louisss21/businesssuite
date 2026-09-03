@@ -125,17 +125,18 @@ export function Field({
  * Sustable-Status: einzelne Akzentfarbe + dezenter rgba-Hintergrund derselben
  * Farbe, Label in Geist Mono (uppercase). Status-Codes bleiben unverändert.
  */
-const GREEN = "#34D399";
-const ORANGE = "#F07D00";
-const BLUE = "#60A5FA";
-const RED = "#F87171";
-const GREY = "#9A9AA2";
+const GREEN = "var(--st-green)";
+const ORANGE = "var(--st-orange)";
+const BLUE = "var(--st-blue)";
+const VIOLET = "var(--st-violet)";
+const RED = "var(--st-red)";
+const GREY = "var(--st-grey)";
 
-const BADGE_COLORS: Record<string, string> = {
-  // Lead
+export const BADGE_COLORS: Record<string, string> = {
+  // Lead – jeder Status ein eigener Farbton (beim Scrollen unterscheidbar)
   NEW: GREY,
   CONTACTED: BLUE,
-  QUALIFIED: BLUE,
+  QUALIFIED: VIOLET,
   WON: GREEN,
   LOST: RED,
   // Order
@@ -150,17 +151,12 @@ const BADGE_COLORS: Record<string, string> = {
   OVERDUE: RED,
 };
 
-function hexToRgba(hex: string, alpha: number) {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
-
 export function Badge({ value }: { value: string }) {
   const color = BADGE_COLORS[value] ?? GREY;
   return (
     <span
-      className="inline-flex items-center rounded-badge px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider"
-      style={{ color, backgroundColor: hexToRgba(color, 0.14) }}
+      className="status-pill inline-flex items-center rounded-badge px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider"
+      style={{ "--sc": color } as React.CSSProperties}
     >
       {value}
     </span>

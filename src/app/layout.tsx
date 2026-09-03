@@ -6,10 +6,16 @@ export const metadata: Metadata = {
   description: "Internes CRM / Orders / Invoices System",
 };
 
+// Setzt das gespeicherte Theme vor dem ersten Paint (verhindert Farb-Flackern).
+const THEME_INIT = `try{if(localStorage.getItem("bs-theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
-      <body>{children}</body>
+    <html lang="de" suppressHydrationWarning>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        {children}
+      </body>
     </html>
   );
 }

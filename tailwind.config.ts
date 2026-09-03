@@ -1,17 +1,23 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Sustable-Dark-Theme. Statt jede Seite umzuschreiben, werden die bestehenden
- * Tailwind-Farbtoken (white, slate-*, brand-*) zentral auf das Dark/Orange-
- * System umgelegt – Funktionen/Markup bleiben unangetastet.
+ * Sustable-Theme (Dark + Light). Statt jede Seite umzuschreiben, werden die
+ * bestehenden Tailwind-Farbtoken (white, slate-*, brand-*) zentral auf
+ * CSS-Variablen umgelegt – die konkreten Werte pro Theme stehen in
+ * globals.css (:root = Dark, html[data-theme="light"] = Light).
  *
- *  bg-white   -> Surface #0F0F11   (text-white -> nahezu schwarz, ideal auf Orange)
- *  slate-*    -> invertierte Dark-Graustufen (slate-900 = weiß, slate-50 = dunkel)
+ *  bg-white   -> var(--c-white)   (Dark: Surface #0F0F11, Light: echtes Weiß)
+ *  slate-*    -> Graustufen pro Theme (Dark invertiert, Light Standard)
  *  brand-*    -> Sustable-Orange-Akzent
  *
+ * Die Variablen sind RGB-Tripel ("15 15 17"), damit Opazitäts-Modifier
+ * (z. B. ring-brand-600/40) weiter funktionieren.
+ *
  * Hinweis: Modal-Overlays nutzen bewusst bg-black/* (nicht slate-900/*),
- * da slate-900 hier zu Weiß invertiert.
+ * da slate-900 im Dark-Theme zu Weiß invertiert.
  */
+const v = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
@@ -29,51 +35,50 @@ const config: Config = {
         "muted-2": "var(--muted-2)",
         accent: "var(--accent)",
 
-        // bestehende Klassen auf Dark umlegen
-        white: "#0F0F11",
+        // bestehende Klassen auf Theme-Variablen umlegen
+        white: v("--c-white"),
         brand: {
-          50: "#1C1C21",
-          100: "#26262B",
-          500: "#F07D00",
-          600: "#F07D00",
-          700: "#FF8C1A",
+          50: v("--brand-50"),
+          100: v("--brand-100"),
+          500: v("--brand-500"),
+          600: v("--brand-600"),
+          700: v("--brand-700"),
         },
         slate: {
-          50: "#16161A",
-          100: "#1C1C21",
-          200: "#23232A",
-          300: "#2E2E35",
-          400: "#6E6E73",
-          500: "#9A9AA2",
-          600: "#A6A6AE",
-          700: "#C9C9CF",
-          800: "#E5E5E8",
-          900: "#FFFFFF",
+          50: v("--slate-50"),
+          100: v("--slate-100"),
+          200: v("--slate-200"),
+          300: v("--slate-300"),
+          400: v("--slate-400"),
+          500: v("--slate-500"),
+          600: v("--slate-600"),
+          700: v("--slate-700"),
+          800: v("--slate-800"),
+          900: v("--slate-900"),
         },
-        // Status-Familien auf Dark umlegen: -50/-100 = dezenter Tint (Pillen/
-        // Alerts), -600/-700 = heller Akzenttext. So entspricht jedes
-        // "bg-X-100 text-X-700"-Pill automatisch dem Sustable-Status.
+        // Status-Familien: -50/-100 = dezenter Tint (Pillen/Alerts),
+        // -600/-700 = Akzenttext. Werte pro Theme in globals.css.
         green: {
-          100: "#10241C",
-          600: "#34D399",
-          700: "#34D399",
+          100: v("--green-100"),
+          600: v("--green-600"),
+          700: v("--green-700"),
         },
         red: {
-          50: "#2A1416",
-          100: "#2A1416",
-          300: "#4A2024",
-          600: "#F87171",
-          700: "#FB8585",
+          50: v("--red-50"),
+          100: v("--red-100"),
+          300: v("--red-300"),
+          600: v("--red-600"),
+          700: v("--red-700"),
         },
         amber: {
-          50: "#241F12",
-          100: "#2A2410",
-          600: "#FBBF24",
-          700: "#FBBF24",
+          50: v("--amber-50"),
+          100: v("--amber-100"),
+          600: v("--amber-600"),
+          700: v("--amber-700"),
         },
         blue: {
-          100: "#15233A",
-          700: "#60A5FA",
+          100: v("--blue-100"),
+          700: v("--blue-700"),
         },
       },
       fontFamily: {

@@ -53,7 +53,7 @@ export function LeadStatusSelect({ id, status }: { id: string; status: string })
       style={{ color, backgroundColor: `${color}24`, borderColor: `${color}40` }}
     >
       {leadStatuses.map((s) => (
-        <option key={s} value={s} style={{ color: "#fff", background: "#16161a" }}>
+        <option key={s} value={s} style={{ color: "var(--text)", background: "var(--surface-2)" }}>
           {LABELS[s] ?? s}
         </option>
       ))}

@@ -18,7 +18,6 @@ const PUBLIC = [
   "/api/health",
   "/api/cron",
   "/api/webhooks",
-  "/api/debug/ai-check",
 ];
 
 const ROLES: Role[] = ["ADMIN", "SALES", "MARKETING", "WAREHOUSE", "ACCOUNTING", "MEMBER"];

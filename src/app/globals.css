@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Sustable-Theme: :root = Dark (Standard), html[data-theme="light"] = Light.
+ * Die RGB-Tripel (--c-white, --slate-…, --brand-…) werden von
+ * tailwind.config.ts als rgb(var(--x) / <alpha-value>) eingebunden.
+ */
 :root {
   --bg: #000000;
   --surface: #0f0f11;
@@ -15,7 +20,89 @@
   --muted: #6e6e73;
   --muted-2: #9a9aa2;
   --accent: #f07d00;
+  --header-bg: rgba(0, 0, 0, 0.72);
+  --scrollbar-hover: #2a2a31;
+
+  --c-white: 15 15 17;
+  --brand-50: 28 28 33;
+  --brand-100: 38 38 43;
+  --brand-500: 240 125 0;
+  --brand-600: 240 125 0;
+  --brand-700: 255 140 26;
+  --slate-50: 22 22 26;
+  --slate-100: 28 28 33;
+  --slate-200: 35 35 42;
+  --slate-300: 46 46 53;
+  --slate-400: 110 110 115;
+  --slate-500: 154 154 162;
+  --slate-600: 166 166 174;
+  --slate-700: 201 201 207;
+  --slate-800: 229 229 232;
+  --slate-900: 255 255 255;
+  --green-100: 16 36 28;
+  --green-600: 52 211 153;
+  --green-700: 52 211 153;
+  --red-50: 42 20 22;
+  --red-100: 42 20 22;
+  --red-300: 74 32 36;
+  --red-600: 248 113 113;
+  --red-700: 251 133 133;
+  --amber-50: 36 31 18;
+  --amber-100: 42 36 16;
+  --amber-600: 251 191 36;
+  --amber-700: 251 191 36;
+  --blue-100: 21 35 58;
+  --blue-700: 96 165 250;
+
   color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --bg: #f2f2f4;
+  --surface: #ffffff;
+  --surface-2: #f6f6f8;
+  --surface-3: #ededf0;
+  --line: rgba(0, 0, 0, 0.09);
+  --line-2: rgba(0, 0, 0, 0.05);
+  --text: #111114;
+  --muted: #8a8a90;
+  --muted-2: #6e6e73;
+  --accent: #f07d00;
+  --header-bg: rgba(255, 255, 255, 0.78);
+  --scrollbar-hover: #d4d4d9;
+
+  --c-white: 255 255 255;
+  --brand-50: 255 244 232;
+  --brand-100: 255 233 209;
+  --brand-500: 240 125 0;
+  --brand-600: 240 125 0;
+  --brand-700: 200 104 0;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --green-100: 209 250 229;
+  --green-600: 5 150 105;
+  --green-700: 4 120 87;
+  --red-50: 254 242 242;
+  --red-100: 254 226 226;
+  --red-300: 252 165 165;
+  --red-600: 220 38 38;
+  --red-700: 185 28 28;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --blue-100: 219 234 254;
+  --blue-700: 29 78 216;
+
+  color-scheme: light;
 }
 
 body {
@@ -50,5 +137,5 @@ body {
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a2a31;
+  background: var(--scrollbar-hover);
 }

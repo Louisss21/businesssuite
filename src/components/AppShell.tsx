@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SearchPalette } from "@/components/SearchPalette";
 import { AssistantWidget } from "@/components/AssistantWidget";
+import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { accessFor, type ModuleKey } from "@/lib/permissions";
 
 export type Role =
@@ -41,32 +43,6 @@ const NAV: NavItem[] = [
 
 function visibleFor(role: Role): NavItem[] {
   return NAV.filter((i) => accessFor(role, i.module) !== "none");
-}
-
-/** Sustable Horizon-Logo + Wortmarke. */
-function Logo() {
-  return (
-    <span className="flex items-center gap-2.5">
-      <svg viewBox="0 0 96 96" className="h-6 w-6" aria-hidden>
-        <path
-          d="M 22.96 41 A 26 26 0 0 1 73.04 41"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="9"
-        />
-        <path
-          d="M 22.96 55 A 26 26 0 0 0 73.04 55"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="9"
-        />
-        <rect x="12" y="43.5" width="72" height="9" fill="#F07D00" />
-      </svg>
-      <span className="text-base font-semibold tracking-tight text-slate-900">
-        sustable
-      </span>
-    </span>
-  );
 }
 
 export function AppShell({
@@ -163,7 +139,7 @@ export function AppShell({
         {/* Topbar (mobil: Hamburger + Titel; immer: globale Suche) */}
         <header
           className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 backdrop-blur-[14px]"
-          style={{ backgroundColor: "rgba(0,0,0,0.72)" }}
+          style={{ backgroundColor: "var(--header-bg)" }}
         >
           <div className="flex items-center gap-3">
             <button
@@ -177,7 +153,10 @@ export function AppShell({
               <Logo />
             </span>
           </div>
-          <SearchPalette />
+          <div className="flex items-center gap-2">
+            <SearchPalette />
+            <ThemeToggle />
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">

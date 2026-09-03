@@ -1,5 +1,7 @@
+import Anthropic from "@anthropic-ai/sdk";
+
 /**
- * TEMPORÄR (Diagnose, wird entfernt): prüft nur, ob OPENAI_API_KEY + Modell
+ * TEMPORÄR (Diagnose, wird entfernt): prüft nur, ob der Anthropic-Key + Modell
  * funktionieren. Kein Zugriff auf Systemdaten, keine Werkzeuge.
  */
 export const runtime = "nodejs";
@@ -7,34 +9,30 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function GET() {
-  const key = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || "gpt-5.1";
+  const key =
+    process.env.ANTHROPIC_API_KEY ||
+    (process.env.OPENAI_API_KEY?.startsWith("sk-ant") ? process.env.OPENAI_API_KEY : undefined);
+  const model = process.env.ANTHROPIC_MODEL || "claude-opus-4-8";
   if (!key) {
-    return Response.json({ ok: false, error: "OPENAI_API_KEY nicht gesetzt" }, { status: 503 });
+    return Response.json({ ok: false, error: "Kein Anthropic-Key gesetzt" }, { status: 503 });
   }
+  const client = new Anthropic({ apiKey: key });
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: "Antworte nur mit: OK" }],
-      }),
+    const response = await client.messages.create({
+      model,
+      max_tokens: 32,
+      messages: [{ role: "user", content: "Antworte nur mit: OK" }],
     });
-    const json = (await res.json()) as {
-      choices?: { message?: { content?: string | null } }[];
-      error?: { message?: string };
-    };
-    if (!res.ok) {
-      return Response.json(
-        { ok: false, model, status: res.status, error: json.error?.message ?? "unbekannt" },
-        { status: 502 },
-      );
-    }
-    return Response.json({ ok: true, model, reply: json.choices?.[0]?.message?.content ?? null });
+    const reply = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+    return Response.json({ ok: true, model, reply });
   } catch (e) {
+    const status = e instanceof Anthropic.APIError ? e.status : undefined;
     return Response.json(
-      { ok: false, model, error: e instanceof Error ? e.message : "Netzwerkfehler" },
+      { ok: false, model, status, error: e instanceof Error ? e.message : "Netzwerkfehler" },
       { status: 502 },
     );
   }

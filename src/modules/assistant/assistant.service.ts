@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db";
 import { AppError } from "@/lib/http";
 import { accessFor, type ModuleKey } from "@/lib/permissions";
@@ -15,7 +16,9 @@ import { invoiceService } from "@/modules/invoices/invoice.service";
  * Riskante Aktionen werden nicht sofort ausgeführt, sondern als
  * Bestätigungs-Vorschlag an das UI zurückgegeben.
  *
- * Modell: OpenAI via REST (OPENAI_API_KEY, OPENAI_MODEL – Standard "gpt-5.1").
+ * Modell: Anthropic Claude via offizielles SDK. Key aus ANTHROPIC_API_KEY
+ * (Fallback: OPENAI_API_KEY, falls dort ein sk-ant-Key liegt),
+ * Modell aus ANTHROPIC_MODEL – Standard "claude-opus-4-8".
  */
 
 export interface ChatMessage {
@@ -291,20 +294,14 @@ export async function executeConfirmed(tool: string, args: Record<string, unknow
   return result;
 }
 
-// ---- OpenAI-Aufruf (REST, Function Calling) ----
+// ---- Anthropic-Aufruf (Messages API, Tool Use) ----
 
-interface OaToolCall {
-  id: string;
-  function: { name: string; arguments: string };
-}
-interface OaMessage {
-  role: string;
-  content: string | null;
-  tool_calls?: OaToolCall[];
-}
-interface OaResponse {
-  choices?: { message: OaMessage }[];
-  error?: { message?: string };
+/** sk-ant-Key: bevorzugt ANTHROPIC_API_KEY, sonst OPENAI_API_KEY (falls dort ein Anthropic-Key liegt). */
+function resolveAnthropicKey(): string | undefined {
+  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
+  const legacy = process.env.OPENAI_API_KEY;
+  if (legacy && legacy.startsWith("sk-ant")) return legacy;
+  return undefined;
 }
 
 const SYSTEM_PROMPT = [
@@ -315,67 +312,70 @@ const SYSTEM_PROMPT = [
 ].join(" ");
 
 export async function chat(messages: ChatMessage[], ctx: Ctx): Promise<AssistantResult> {
-  const key = process.env.OPENAI_API_KEY;
+  const key = resolveAnthropicKey();
   if (!key) {
     throw new AppError(
-      "Assistent nicht konfiguriert: Bitte OPENAI_API_KEY (und optional OPENAI_MODEL) als Umgebungsvariable setzen.",
+      "Assistent nicht konfiguriert: Bitte ANTHROPIC_API_KEY (und optional ANTHROPIC_MODEL) als Umgebungsvariable setzen.",
       503,
     );
   }
-  const model = process.env.OPENAI_MODEL || "gpt-5.1";
+  const model = process.env.ANTHROPIC_MODEL || "claude-opus-4-8";
+  const client = new Anthropic({ apiKey: key });
 
   const available = TOOLS.filter((t) => allowed(t, ctx.role));
-  const oaTools = available.map((t) => ({
-    type: "function",
-    function: { name: t.name, description: t.description, parameters: t.parameters },
+  const tools: Anthropic.Tool[] = available.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.parameters as Anthropic.Tool.InputSchema,
   }));
 
-  const convo: Record<string, unknown>[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...messages.map((m) => ({ role: m.role, content: m.content })),
-  ];
+  const convo: Anthropic.MessageParam[] = messages.map((m) => ({ role: m.role, content: m.content }));
 
   for (let round = 0; round < 5; round++) {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: convo, tools: oaTools, tool_choice: "auto" }),
-    });
-    const json = (await res.json()) as OaResponse;
-    if (!res.ok) {
-      throw new AppError(`KI-Anfrage fehlgeschlagen: ${json.error?.message ?? res.status}`, 502);
+    let response: Anthropic.Message;
+    try {
+      response = await client.messages.create({
+        model,
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        tools,
+        messages: convo,
+      });
+    } catch (e) {
+      const msg = e instanceof Anthropic.APIError ? e.message : "Netzwerkfehler";
+      throw new AppError(`KI-Anfrage fehlgeschlagen: ${msg}`, 502);
     }
-    const msg = json.choices?.[0]?.message;
-    if (!msg) throw new AppError("Keine Antwort vom Modell erhalten.", 502);
 
-    const calls = msg.tool_calls ?? [];
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+    const calls = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+
     if (calls.length === 0) {
-      return { reply: msg.content ?? "(keine Antwort)" };
+      return { reply: text || "(keine Antwort)" };
     }
 
-    convo.push({ role: "assistant", content: msg.content, tool_calls: msg.tool_calls });
+    convo.push({ role: "assistant", content: response.content });
 
+    const results: Anthropic.ToolResultBlockParam[] = [];
     for (const call of calls) {
-      const def = TOOLS.find((t) => t.name === call.function.name);
-      let args: Record<string, unknown> = {};
-      try {
-        args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
-      } catch {
-        // leere Argumente
-      }
+      const def = TOOLS.find((t) => t.name === call.name);
+      const args = (call.input ?? {}) as Record<string, unknown>;
 
       if (!def) {
-        convo.push({ role: "tool", tool_call_id: call.id, content: "Unbekanntes Werkzeug." });
+        results.push({ type: "tool_result", tool_use_id: call.id, content: "Unbekanntes Werkzeug." });
         continue;
       }
       if (!allowed(def, ctx.role)) {
-        convo.push({ role: "tool", tool_call_id: call.id, content: "Keine Berechtigung für diese Aktion (Rolle)." });
+        results.push({ type: "tool_result", tool_use_id: call.id, content: "Keine Berechtigung für diese Aktion (Rolle)." });
         continue;
       }
       if (def.risky) {
         // Riskante Aktion: nicht ausführen, sondern Bestätigung anfordern.
         return {
-          reply: msg.content ?? undefined,
+          reply: text || undefined,
           pending: { tool: def.name, args, summary: def.summarize(args) },
         };
       }
@@ -386,8 +386,9 @@ export async function chat(messages: ChatMessage[], ctx: Ctx): Promise<Assistant
         result = `Fehler: ${e instanceof Error ? e.message : "Aktion fehlgeschlagen"}`;
       }
       await logAction(ctx, def.name, args, result);
-      convo.push({ role: "tool", tool_call_id: call.id, content: result });
+      results.push({ type: "tool_result", tool_use_id: call.id, content: result });
     }
+    convo.push({ role: "user", content: results });
   }
 
   return { reply: "Zu viele Zwischenschritte – bitte die Anfrage präziser formulieren." };

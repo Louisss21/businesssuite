@@ -14,6 +14,8 @@ import { productionService } from "@/modules/production/production.service";
 import { customerService, displayName } from "@/modules/crm/customer.service";
 import { customerCreateSchema } from "@/modules/crm/customer.schema";
 import { userService } from "@/modules/users/user.service";
+import { activityService } from "@/modules/activities/activity.service";
+import { ACTIVITY_LABELS } from "@/modules/activities/activity.schema";
 
 /**
  * System-Assistent (Chatbot): führt Änderungen über die BESTEHENDEN
@@ -440,6 +442,120 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "update_lead",
+    description:
+      "Ändert Lead-Daten: Notiz, Titel, Kontaktdaten, Firma, Position, Quelle oder Score. Lead per Titel/E-Mail/Firma suchen. Nur angegebene Felder werden geändert; die Notiz wird dabei ersetzt (für fortlaufende Einträge add_lead_activity nutzen).",
+    parameters: {
+      type: "object",
+      properties: {
+        leadQuery: { type: "string", description: "Titel, E-Mail oder Firma des Leads" },
+        notes: { type: "string", description: "Notiz zum Lead (ersetzt die bisherige Notiz)" },
+        title: { type: "string" },
+        firstName: { type: "string" },
+        lastName: { type: "string" },
+        company: { type: "string" },
+        position: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+        source: { type: "string" },
+        score: { type: "number", description: "0 bis 100" },
+      },
+      required: ["leadQuery"],
+    },
+    module: "leads",
+    write: true,
+    risky: false,
+    summarize: (a) => `Lead "${str(a.leadQuery)}" aktualisieren`,
+    execute: async (a) => {
+      const hits = await findLeads(str(a.leadQuery));
+      if (hits.length === 0) return `Kein Lead zu "${str(a.leadQuery)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Leads gefunden (${hits.map((l) => l.title).join(", ")}) – bitte genauer angeben.`;
+      const changes: Record<string, unknown> = {};
+      const textFields = [
+        "notes",
+        "title",
+        "firstName",
+        "lastName",
+        "company",
+        "position",
+        "email",
+        "phone",
+        "source",
+      ] as const;
+      for (const f of textFields) {
+        if (a[f] !== undefined) changes[f] = str(a[f]);
+      }
+      if (a.score !== undefined) changes.score = num(a.score);
+      if (Object.keys(changes).length === 0) return "Keine Änderungen angegeben.";
+      await leadService.update(hits[0].id, changes);
+      return `Lead "${hits[0].title}" aktualisiert (${Object.keys(changes).join(", ")}).`;
+    },
+  },
+  {
+    name: "add_lead_activity",
+    description:
+      "Hält eine Aktivität beim Lead fest (NOTE Notiz, CALL Anruf, EMAIL, MEETING, VISIT Besuch). Erscheint im Verlauf des Leads – der richtige Weg für fortlaufende Gesprächsnotizen.",
+    parameters: {
+      type: "object",
+      properties: {
+        leadQuery: { type: "string", description: "Titel, E-Mail oder Firma des Leads" },
+        type: { type: "string", enum: ["NOTE", "CALL", "EMAIL", "MEETING", "VISIT"] },
+        subject: { type: "string", description: "Kurzer Betreff" },
+        body: { type: "string", description: "Ausführlicher Text (optional)" },
+      },
+      required: ["leadQuery", "subject"],
+    },
+    module: "leads",
+    write: true,
+    risky: false,
+    summarize: (a) =>
+      `${ACTIVITY_LABELS[str(a.type) || "NOTE"] ?? "Notiz"} bei Lead "${str(a.leadQuery)}" festhalten`,
+    execute: async (a) => {
+      const hits = await findLeads(str(a.leadQuery));
+      if (hits.length === 0) return `Kein Lead zu "${str(a.leadQuery)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Leads gefunden (${hits.map((l) => l.title).join(", ")}) – bitte genauer angeben.`;
+      const type = a.type ? str(a.type) : "NOTE";
+      await activityService.create({
+        type,
+        subject: str(a.subject),
+        body: a.body ? str(a.body) : "",
+        leadId: hits[0].id,
+      });
+      return `${ACTIVITY_LABELS[type] ?? "Notiz"} bei Lead "${hits[0].title}" festgehalten: ${str(a.subject)}`;
+    },
+  },
+  {
+    name: "list_lead_activities",
+    description: "Zeigt den Verlauf eines Leads (Notizen, Anrufe, E-Mails, Meetings, Besuche).",
+    parameters: {
+      type: "object",
+      properties: { leadQuery: { type: "string" } },
+      required: ["leadQuery"],
+    },
+    module: "leads",
+    write: false,
+    risky: false,
+    summarize: (a) => `Verlauf von Lead "${str(a.leadQuery)}" anzeigen`,
+    execute: async (a) => {
+      const hits = await findLeads(str(a.leadQuery));
+      if (hits.length === 0) return `Kein Lead zu "${str(a.leadQuery)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Leads gefunden (${hits.map((l) => l.title).join(", ")}) – bitte genauer angeben.`;
+      const acts = await activityService.list({ leadId: hits[0].id });
+      const notes = hits[0].notes ? `Notiz: ${hits[0].notes}\n` : "";
+      if (acts.length === 0) return `${notes}Noch keine Aktivitäten zu "${hits[0].title}".`;
+      return (
+        notes +
+        acts
+          .slice(0, 15)
+          .map(
+            (x) =>
+              `${fmtDate(x.createdAt)} · ${ACTIVITY_LABELS[x.type] ?? x.type} · ${x.subject}${x.body ? ` – ${x.body}` : ""}`,
+          )
+          .join("\n")
+      );
+    },
+  },
+  {
     name: "distribute_leads",
     description:
       "RISKANT: Verteilt Leads gleichmäßig (Round-Robin) auf mehrere Mitarbeiter, optional gefiltert nach Status. Überschreibt bestehende Zuweisungen.",
@@ -570,6 +686,40 @@ const TOOLS: ToolDef[] = [
       if (Object.keys(changes).length === 0) return "Keine Änderungen angegeben.";
       await customerService.update(hits[0].id, changes);
       return `Kunde "${displayName(hits[0])}" aktualisiert.`;
+    },
+  },
+
+  {
+    name: "add_customer_activity",
+    description:
+      "Hält eine Aktivität beim Kunden fest (NOTE Notiz, CALL Anruf, EMAIL, MEETING, VISIT Besuch) – erscheint im Kundenverlauf.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerQuery: { type: "string", description: "Name, Firma oder E-Mail" },
+        type: { type: "string", enum: ["NOTE", "CALL", "EMAIL", "MEETING", "VISIT"] },
+        subject: { type: "string", description: "Kurzer Betreff" },
+        body: { type: "string", description: "Ausführlicher Text (optional)" },
+      },
+      required: ["customerQuery", "subject"],
+    },
+    module: "crm",
+    write: true,
+    risky: false,
+    summarize: (a) =>
+      `${ACTIVITY_LABELS[str(a.type) || "NOTE"] ?? "Notiz"} bei Kunde "${str(a.customerQuery)}" festhalten`,
+    execute: async (a) => {
+      const hits = await customerService.list({ search: str(a.customerQuery) });
+      if (hits.length === 0) return `Kein Kunde zu "${str(a.customerQuery)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Kunden gefunden (${hits.slice(0, 5).map(displayName).join(", ")}) – bitte genauer angeben.`;
+      const type = a.type ? str(a.type) : "NOTE";
+      await activityService.create({
+        type,
+        subject: str(a.subject),
+        body: a.body ? str(a.body) : "",
+        customerId: hits[0].id,
+      });
+      return `${ACTIVITY_LABELS[type] ?? "Notiz"} bei "${displayName(hits[0])}" festgehalten: ${str(a.subject)}`;
     },
   },
 

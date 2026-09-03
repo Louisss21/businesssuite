@@ -11,6 +11,7 @@ import { invoiceService } from "@/modules/invoices/invoice.service";
 import { quoteService } from "@/modules/quotes/quote.service";
 import { productService } from "@/modules/products/product.service";
 import { productionService } from "@/modules/production/production.service";
+import { campaignService } from "@/modules/campaigns/campaign.service";
 import { customerService, displayName } from "@/modules/crm/customer.service";
 import { customerCreateSchema } from "@/modules/crm/customer.schema";
 import { userService } from "@/modules/users/user.service";
@@ -112,6 +113,52 @@ async function findUser(name: string): Promise<{ id: string; name: string } | st
   if (hits.length > 1) return `Mehrere Mitarbeiter gefunden (${hits.map((u) => u.name).join(", ")}) – bitte genauer angeben.`;
   return hits[0];
 }
+
+/** Genau einen Kunden per Name/Firma/E-Mail auflösen (sonst Fehlertext). */
+async function findCustomerOne(
+  query: string,
+): Promise<{ id: string; label: string } | string> {
+  const q = query.trim();
+  const hits = await customerService.list({ search: q });
+  if (hits.length === 0) return `Kein Kunde zu "${q}" gefunden.`;
+  if (hits.length > 1) {
+    const names = hits.slice(0, 5).map((c) => displayName(c)).join(", ");
+    return `Mehrere Kunden gefunden (${names}) – bitte genauer angeben.`;
+  }
+  return { id: hits[0].id, label: displayName(hits[0]) };
+}
+
+/** Genau eine Kampagne per Name auflösen (sonst Fehlertext). */
+async function findCampaignOne(
+  query: string,
+): Promise<{ id: string; name: string } | string> {
+  const q = query.trim();
+  const hits = await prisma.campaign.findMany({
+    where: { name: { contains: q, mode: "insensitive" } },
+    select: { id: true, name: true },
+    take: 3,
+  });
+  if (hits.length === 0) return `Keine Kampagne zu "${q}" gefunden.`;
+  if (hits.length > 1) {
+    return `Mehrere Kampagnen gefunden (${hits.map((c) => c.name).join(", ")}) – bitte genauer angeben.`;
+  }
+  return hits[0];
+}
+
+/** Positionslisten aus dem Werkzeugaufruf robust einlesen. */
+const rowsOf = (v: unknown): Record<string, unknown>[] =>
+  Array.isArray(v)
+    ? (v.filter((x) => x !== null && typeof x === "object") as Record<string, unknown>[])
+    : [];
+
+/** Zielgruppen-Filter aus den Werkzeug-Argumenten zusammenstellen. */
+const targetOf = (a: Record<string, unknown>) => ({
+  customerType: a.customerType ? str(a.customerType) : "",
+  plzFrom: a.plzFrom ? str(a.plzFrom) : "",
+  plzTo: a.plzTo ? str(a.plzTo) : "",
+  classification: a.classification ? str(a.classification) : "",
+  noPurchaseMonths: a.noPurchaseMonths ? num(a.noPurchaseMonths) : "",
+});
 
 const fmtDate = (d: Date | null | undefined) =>
   d ? new Date(d).toLocaleDateString("de-DE") : "—";
@@ -968,6 +1015,374 @@ const TOOLS: ToolDef[] = [
       if (hits.length > 1) return `Mehrere Aufgaben gefunden (${hits.map((t) => t.title).join(", ")}) – bitte genauer angeben.`;
       await taskService.update(hits[0].id, { status: "DONE" });
       return `Aufgabe "${hits[0].title}" als erledigt markiert.`;
+    },
+  },
+
+  // ---- Kampagnen ----
+  {
+    name: "list_campaigns",
+    description: "Listet Kampagnen mit Typ, Status, Zeitraum, Budget und Empfängerzahl.",
+    parameters: { type: "object", properties: {}, required: [] },
+    module: "campaigns",
+    write: false,
+    risky: false,
+    summarize: () => "Kampagnen listen",
+    execute: async () => {
+      const list = await campaignService.list();
+      if (list.length === 0) return "Keine Kampagnen gefunden.";
+      return list
+        .slice(0, 15)
+        .map(
+          (c) =>
+            `${c.name} · ${c.type} · ${c.status} · ${fmtDate(c.startDate)}–${fmtDate(c.endDate)} · ${
+              c.budget === null ? "kein Budget" : fmtEur(Number(c.budget))
+            } · ${c._count.recipients} Empfänger`,
+        )
+        .join("\n");
+    },
+  },
+  {
+    name: "create_campaign",
+    description:
+      "Legt eine Kampagne an (Name; optional Typ POST/EMAIL/PHONE/MIXED, Start-/Enddatum, Budget, Notiz). Das Startdatum darf nicht in der Vergangenheit liegen.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        type: { type: "string", enum: ["POST", "EMAIL", "PHONE", "MIXED"] },
+        startDate: { type: "string", description: "YYYY-MM-DD" },
+        endDate: { type: "string", description: "YYYY-MM-DD" },
+        budget: { type: "number", description: "Budget in Euro" },
+        notes: { type: "string" },
+      },
+      required: ["name"],
+    },
+    module: "campaigns",
+    write: true,
+    risky: false,
+    summarize: (a) => `Kampagne "${str(a.name)}" anlegen`,
+    execute: async (a) => {
+      const c = await campaignService.create({
+        name: str(a.name),
+        type: a.type ? str(a.type) : "POST",
+        status: "DRAFT",
+        startDate: a.startDate ? str(a.startDate) : "",
+        endDate: a.endDate ? str(a.endDate) : "",
+        budget: a.budget === undefined ? "" : num(a.budget),
+        notes: a.notes ? str(a.notes) : "",
+      });
+      return `Kampagne "${c.name}" (${c.type}) als Entwurf angelegt.`;
+    },
+  },
+  {
+    name: "preview_campaign_target",
+    description:
+      "Zählt, wie viele Kunden ein Zielgruppen-Filter trifft – ohne etwas zu speichern. Filter: Kundentyp (COMPANY/PRIVATE), PLZ-Bereich, Einstufung, Monate ohne Kauf.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerType: { type: "string", enum: ["COMPANY", "PRIVATE"] },
+        plzFrom: { type: "string" },
+        plzTo: { type: "string" },
+        classification: { type: "string" },
+        noPurchaseMonths: { type: "number", description: "Kunden ohne Rechnung in den letzten X Monaten" },
+      },
+      required: [],
+    },
+    module: "campaigns",
+    write: false,
+    risky: false,
+    summarize: () => "Zielgruppe zählen",
+    execute: async (a) => {
+      const count = await campaignService.previewCount(targetOf(a));
+      return `${count} Kunde(n) treffen diesen Filter.`;
+    },
+  },
+  {
+    name: "add_campaign_recipients",
+    description:
+      "RISKANT: Fügt einer Kampagne alle Kunden hinzu, die auf den Zielgruppen-Filter passen (Duplikate werden übersprungen).",
+    parameters: {
+      type: "object",
+      properties: {
+        campaignName: { type: "string" },
+        customerType: { type: "string", enum: ["COMPANY", "PRIVATE"] },
+        plzFrom: { type: "string" },
+        plzTo: { type: "string" },
+        classification: { type: "string" },
+        noPurchaseMonths: { type: "number" },
+      },
+      required: ["campaignName"],
+    },
+    module: "campaigns",
+    write: true,
+    risky: true,
+    summarize: (a) => `Empfänger zur Kampagne "${str(a.campaignName)}" hinzufügen`,
+    execute: async (a) => {
+      const c = await findCampaignOne(str(a.campaignName));
+      if (typeof c === "string") return c;
+      const res = await campaignService.addRecipients(c.id, targetOf(a));
+      return `Kampagne "${c.name}": ${res.added} Empfänger hinzugefügt, ${res.skipped} bereits vorhanden.`;
+    },
+  },
+  {
+    name: "update_campaign_status",
+    description: "Setzt den Status einer Kampagne (DRAFT, ACTIVE, PAUSED, COMPLETED).",
+    parameters: {
+      type: "object",
+      properties: {
+        campaignName: { type: "string" },
+        status: { type: "string", enum: ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"] },
+      },
+      required: ["campaignName", "status"],
+    },
+    module: "campaigns",
+    write: true,
+    risky: false,
+    summarize: (a) => `Kampagne "${str(a.campaignName)}" auf ${str(a.status)} setzen`,
+    execute: async (a) => {
+      const c = await findCampaignOne(str(a.campaignName));
+      if (typeof c === "string") return c;
+      await campaignService.bulkUpdate([c.id], { status: str(a.status) });
+      return `Kampagne "${c.name}" auf ${str(a.status)} gesetzt.`;
+    },
+  },
+  {
+    name: "mark_campaign_sent",
+    description:
+      "RISKANT: Markiert alle noch nicht versendeten Empfänger einer Kampagne als versendet (Versanddatum = heute).",
+    parameters: {
+      type: "object",
+      properties: { campaignName: { type: "string" } },
+      required: ["campaignName"],
+    },
+    module: "campaigns",
+    write: true,
+    risky: true,
+    summarize: (a) => `Kampagne "${str(a.campaignName)}" als versendet markieren`,
+    execute: async (a) => {
+      const c = await findCampaignOne(str(a.campaignName));
+      if (typeof c === "string") return c;
+      await campaignService.markAllSent(c.id);
+      return `Alle offenen Empfänger der Kampagne "${c.name}" sind als versendet markiert.`;
+    },
+  },
+
+  // ---- Anlegen: Angebot, Bestellung, Rechnung, Produkt, Produktion ----
+  {
+    name: "create_quote",
+    description:
+      "Legt ein Angebot als Entwurf an. Kunde per Name/Firma/E-Mail, mindestens eine Position mit Bezeichnung, Menge und Netto-Einzelpreis.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerQuery: { type: "string", description: "Name, Firma oder E-Mail des Kunden" },
+        validUntil: { type: "string", description: "Gültig bis (YYYY-MM-DD), nicht in der Vergangenheit" },
+        notes: { type: "string" },
+        items: {
+          type: "array",
+          description: "Angebotspositionen",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Bezeichnung der Position" },
+              qty: { type: "number", description: "Menge (> 0)" },
+              unitPrice: { type: "number", description: "Netto-Einzelpreis in Euro" },
+              discountPct: { type: "number", description: "Rabatt in Prozent, Standard 0" },
+              taxRate: { type: "number", description: "Steuersatz in Prozent, Standard 19" },
+            },
+            required: ["name", "qty", "unitPrice"],
+          },
+        },
+      },
+      required: ["customerQuery", "items"],
+    },
+    module: "quotes",
+    write: true,
+    risky: false,
+    summarize: (a) =>
+      `Angebot für ${str(a.customerQuery)} anlegen (${rowsOf(a.items).length} Position(en))`,
+    execute: async (a) => {
+      const c = await findCustomerOne(str(a.customerQuery));
+      if (typeof c === "string") return c;
+      const items = rowsOf(a.items).map((it) => ({
+        name: str(it.name),
+        qty: num(it.qty),
+        unitPrice: num(it.unitPrice),
+        discountPct: it.discountPct === undefined ? 0 : num(it.discountPct),
+        taxRate: it.taxRate === undefined ? 19 : num(it.taxRate),
+      }));
+      if (items.length === 0) {
+        return "Mindestens eine Position mit Bezeichnung, Menge und Einzelpreis angeben.";
+      }
+      const quote = await quoteService.create({
+        customerId: c.id,
+        status: "DRAFT",
+        validUntil: a.validUntil ? str(a.validUntil) : "",
+        notes: a.notes ? str(a.notes) : "",
+        items,
+      });
+      return `Angebot ${quote.number} für ${c.label} angelegt (${fmtEur(Number(quote.grossTotal))} brutto).`;
+    },
+  },
+  {
+    name: "create_order",
+    description:
+      "Legt eine Bestellung als Entwurf an. Kunde per Name/Firma/E-Mail, mindestens eine Position mit Produktname, Menge und Netto-Einzelpreis.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerQuery: { type: "string", description: "Name, Firma oder E-Mail des Kunden" },
+        notes: { type: "string" },
+        items: {
+          type: "array",
+          description: "Bestellpositionen",
+          items: {
+            type: "object",
+            properties: {
+              productName: { type: "string" },
+              quantity: { type: "number", description: "Menge (> 0)" },
+              unitPrice: { type: "number", description: "Netto-Einzelpreis in Euro" },
+              taxRate: { type: "number", description: "Steuersatz in Prozent, Standard 19" },
+            },
+            required: ["productName", "quantity", "unitPrice"],
+          },
+        },
+      },
+      required: ["customerQuery", "items"],
+    },
+    module: "orders",
+    write: true,
+    risky: false,
+    summarize: (a) =>
+      `Bestellung für ${str(a.customerQuery)} anlegen (${rowsOf(a.items).length} Position(en))`,
+    execute: async (a) => {
+      const c = await findCustomerOne(str(a.customerQuery));
+      if (typeof c === "string") return c;
+      const items = rowsOf(a.items).map((it) => ({
+        productName: str(it.productName),
+        quantity: num(it.quantity),
+        unitPrice: num(it.unitPrice),
+        taxRate: it.taxRate === undefined ? 19 : num(it.taxRate),
+      }));
+      if (items.length === 0) {
+        return "Mindestens eine Position mit Produktname, Menge und Einzelpreis angeben.";
+      }
+      const order = await orderService.create({
+        customerId: c.id,
+        status: "DRAFT",
+        notes: a.notes ? str(a.notes) : "",
+        items,
+      });
+      return `Bestellung ${order.orderNumber} für ${c.label} angelegt (${fmtEur(Number(order.grossTotal))} brutto).`;
+    },
+  },
+  {
+    name: "create_invoice_from_order",
+    description:
+      "RISKANT: Erzeugt die Rechnung zu einer Bestellung (per Bestellnummer). Pro Bestellung ist nur eine Rechnung möglich.",
+    parameters: {
+      type: "object",
+      properties: {
+        orderNumber: { type: "string", description: "z. B. ORD-2026-0001" },
+        dueDate: { type: "string", description: "Fällig am (YYYY-MM-DD), Standard: Zahlungsziel aus den Einstellungen" },
+      },
+      required: ["orderNumber"],
+    },
+    module: "invoices",
+    write: true,
+    risky: true,
+    summarize: (a) => `Rechnung zu Bestellung ${str(a.orderNumber)} erzeugen`,
+    execute: async (a) => {
+      const o = await prisma.order.findUnique({
+        where: { orderNumber: str(a.orderNumber).trim() },
+      });
+      if (!o) return `Bestellung ${str(a.orderNumber)} nicht gefunden.`;
+      const inv = await invoiceService.createFromOrder({
+        orderId: o.id,
+        ...(a.dueDate ? { dueDate: str(a.dueDate) } : {}),
+      });
+      return `Rechnung ${inv.invoiceNumber} zu Bestellung ${o.orderNumber} erstellt (${fmtEur(
+        Number(inv.grossTotal),
+      )}, fällig ${fmtDate(inv.dueDate)}).`;
+    },
+  },
+  {
+    name: "create_product",
+    description:
+      "Legt ein Produkt an (SKU und Name erforderlich; optional Kategorie, Netto-Preis, Steuersatz, Bestand, Mindestbestand, Einheit).",
+    parameters: {
+      type: "object",
+      properties: {
+        sku: { type: "string" },
+        name: { type: "string" },
+        description: { type: "string" },
+        category: { type: "string", description: "Kategoriename; wird bei Bedarf neu angelegt" },
+        priceNet: { type: "number", description: "Netto-Preis in Euro" },
+        taxRate: { type: "number", description: "Standard 19" },
+        stockQty: { type: "number", description: "Anfangsbestand, Standard 0" },
+        minStock: { type: "number", description: "Mindestbestand, Standard 0" },
+        unit: { type: "string", description: "Standard Stück" },
+      },
+      required: ["sku", "name"],
+    },
+    module: "products",
+    write: true,
+    risky: false,
+    summarize: (a) => `Produkt "${str(a.name)}" (${str(a.sku)}) anlegen`,
+    execute: async (a) => {
+      const p = await productService.create({
+        sku: str(a.sku),
+        name: str(a.name),
+        description: a.description ? str(a.description) : "",
+        category: a.category ? str(a.category) : "",
+        priceNet: a.priceNet === undefined ? 0 : num(a.priceNet),
+        taxRate: a.taxRate === undefined ? 19 : num(a.taxRate),
+        stockQty: a.stockQty === undefined ? 0 : num(a.stockQty),
+        minStock: a.minStock === undefined ? 0 : num(a.minStock),
+        unit: a.unit ? str(a.unit) : "Stück",
+      });
+      return `Produkt "${p.name}" (${p.sku}) angelegt, Preis ${fmtEur(Number(p.priceNet))} netto.`;
+    },
+  },
+  {
+    name: "list_table_models",
+    description: "Listet die aktiven Tischmodelle mit Anzahl der Arbeitsschritte (Basis für start_production).",
+    parameters: { type: "object", properties: {}, required: [] },
+    module: "production",
+    write: false,
+    risky: false,
+    summarize: () => "Tischmodelle listen",
+    execute: async () => {
+      const models = await productionService.listActiveModels();
+      if (models.length === 0) return "Keine aktiven Tischmodelle vorhanden.";
+      return models.map((m) => `${m.name} · ${m._count.steps} Schritt(e)`).join("\n");
+    },
+  },
+  {
+    name: "start_production",
+    description:
+      "Startet einen Produktionsauftrag für ein Tischmodell (per Modellname). Das Modell braucht mindestens einen Arbeitsschritt.",
+    parameters: {
+      type: "object",
+      properties: { modelName: { type: "string", description: "Name des Tischmodells, z. B. Sustable ONE" } },
+      required: ["modelName"],
+    },
+    module: "production",
+    write: true,
+    risky: false,
+    summarize: (a) => `Produktion für Modell "${str(a.modelName)}" starten`,
+    execute: async (a) => {
+      const q = str(a.modelName).trim();
+      const models = await productionService.listActiveModels();
+      const hits = models.filter((m) => m.name.toLowerCase().includes(q.toLowerCase()));
+      if (hits.length === 0) return `Kein aktives Tischmodell zu "${q}" gefunden.`;
+      if (hits.length > 1) {
+        return `Mehrere Modelle gefunden (${hits.map((m) => m.name).join(", ")}) – bitte genauer angeben.`;
+      }
+      const order = await productionService.start(hits[0].id);
+      const serial = await productionService.suggestSerial();
+      return `Produktion für "${hits[0].name}" gestartet (Schritt 1 von ${hits[0]._count.steps}). Vorschlag für die Seriennummer: ${serial}. Auftrags-ID: ${order.id}`;
     },
   },
 ];

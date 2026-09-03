@@ -1,32 +1,59 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { LEAD_STATUS_OPTIONS } from "@/modules/crm/lead.schema";
 
 const STATUS = [{ value: "", label: "Alle Status" }, ...LEAD_STATUS_OPTIONS];
 
 /**
- * Filterleiste der Leads-Liste: Zuständigkeit ("Meine Leads", einzelne
- * Mitarbeiter, ohne Zuweisung) + Status. Schreibt die Auswahl in die URL
- * (?assigned=…&status=…), gefiltert wird serverseitig in page.tsx.
+ * Cookie, in dem die gewählte Filterung gemerkt wird. Wird auch in page.tsx
+ * serverseitig gelesen, damit die Liste sofort gefiltert gerendert wird.
+ */
+export const LEADS_FILTER_COOKIE = "bs-leads-filter";
+
+/** Filter merken (bzw. Cookie löschen, wenn nichts gefiltert ist). */
+function persist(assigned: string, status: string) {
+  const q = new URLSearchParams();
+  if (assigned) q.set("assigned", assigned);
+  if (status) q.set("status", status);
+  const base = `${LEADS_FILTER_COOKIE}=`;
+  document.cookie = q.size
+    ? `${base}${encodeURIComponent(q.toString())}; path=/; max-age=31536000; samesite=lax`
+    : `${base}; path=/; max-age=0; samesite=lax`;
+}
+
+/**
+ * Filterleiste der Leads-Liste: Zuständigkeit (einzelne Mitarbeiter, ohne
+ * Zuweisung) + Status. Gefiltert wird serverseitig in page.tsx.
+ *
+ * Die Auswahl steht in der URL (?assigned=…&status=…) UND in einem Cookie:
+ * Ruft man /leads ohne Parameter auf (z. B. über die Navigation), greift der
+ * gemerkte Filter weiter. Er bleibt gesetzt, bis „Zurücksetzen" geklickt oder
+ * überall „Alle" gewählt wird. `assigned`/`status` kommen als effektive Werte
+ * vom Server – nicht aus der URL, die bei Cookie-Filterung leer sein kann.
  */
 export function LeadsFilter({
   users,
   count,
+  assigned,
+  status,
 }: {
   users: { id: string; name: string }[];
   count: number;
+  assigned: string;
+  status: string;
 }) {
   const router = useRouter();
-  const params = useSearchParams();
-  const assigned = params.get("assigned") ?? "";
-  const status = params.get("status") ?? "";
 
-  function setParam(key: "assigned" | "status", value: string) {
-    const next = new URLSearchParams(params.toString());
-    if (value) next.set(key, value);
-    else next.delete(key);
-    router.replace(`/leads${next.size ? `?${next}` : ""}`);
+  function apply(nextAssigned: string, nextStatus: string) {
+    persist(nextAssigned, nextStatus);
+    const q = new URLSearchParams();
+    if (nextAssigned) q.set("assigned", nextAssigned);
+    if (nextStatus) q.set("status", nextStatus);
+    router.replace(`/leads${q.size ? `?${q}` : ""}`);
+    // Router-Cache verwerfen: sonst kann ein späterer Klick auf "Leads" in der
+    // Navigation eine gecachte Seitenversion mit dem alten Filterstand zeigen.
+    router.refresh();
   }
 
   const selectCls =
@@ -37,7 +64,7 @@ export function LeadsFilter({
       <span className="label">Filter</span>
       <select
         value={assigned}
-        onChange={(e) => setParam("assigned", e.target.value)}
+        onChange={(e) => apply(e.target.value, status)}
         className={selectCls}
       >
         <option value="">Alle Zuständigen</option>
@@ -50,7 +77,7 @@ export function LeadsFilter({
       </select>
       <select
         value={status}
-        onChange={(e) => setParam("status", e.target.value)}
+        onChange={(e) => apply(assigned, e.target.value)}
         className={selectCls}
       >
         {STATUS.map((s) => (
@@ -61,7 +88,7 @@ export function LeadsFilter({
       </select>
       {(assigned || status) && (
         <button
-          onClick={() => router.replace("/leads")}
+          onClick={() => apply("", "")}
           className="rounded-lg px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700"
         >
           ✕ Zurücksetzen

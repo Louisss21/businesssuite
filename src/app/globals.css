@@ -58,6 +58,7 @@
      Farbton, damit sie beim Scrollen klar unterscheidbar sind. */
   --st-grey: #9a9aa2;
   --st-blue: #60a5fa;
+  --st-cyan: #22d3ee;
   --st-violet: #a78bfa;
   --st-green: #34d399;
   --st-red: #f87171;
@@ -114,6 +115,7 @@ html[data-theme="light"] {
   /* Light Mode: kräftigere Varianten, damit die Pillen auf Weiß lesbar sind. */
   --st-grey: #64748b;
   --st-blue: #2563eb;
+  --st-cyan: #0e7490;
   --st-violet: #7c3aed;
   --st-green: #059669;
   --st-red: #dc2626;

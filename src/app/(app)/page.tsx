@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { Card, PageHeader, Badge, Table, Th, Td, Empty } from "@/components/ui";
 import { formatEUR } from "@/lib/money";
 import { displayName } from "@/modules/crm/customer.service";
+import { openLeadStatuses } from "@/modules/crm/lead.schema";
 import { taskService } from "@/modules/tasks/task.service";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ async function getStats() {
     dueTasks,
   ] = await Promise.all([
     prisma.customer.count(),
-    prisma.lead.count({ where: { status: { in: ["NEW", "CONTACTED", "QUALIFIED"] } } }),
+    prisma.lead.count({ where: { status: { in: [...openLeadStatuses] } } }),
     prisma.order.count({ where: { status: { in: ["DRAFT", "CONFIRMED", "IN_PROGRESS"] } } }),
     prisma.invoice.count({ where: { status: "OPEN" } }),
     prisma.invoice.aggregate({ where: { status: "OPEN" }, _sum: { grossTotal: true } }),

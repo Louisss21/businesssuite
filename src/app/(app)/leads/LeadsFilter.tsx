@@ -1,15 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { LEAD_STATUS_OPTIONS } from "@/modules/crm/lead.schema";
 
-const STATUS = [
-  { value: "", label: "Alle Status" },
-  { value: "NEW", label: "Neu" },
-  { value: "CONTACTED", label: "Kontaktiert" },
-  { value: "QUALIFIED", label: "Qualifiziert" },
-  { value: "WON", label: "Gewonnen" },
-  { value: "LOST", label: "Verloren" },
-];
+const STATUS = [{ value: "", label: "Alle Status" }, ...LEAD_STATUS_OPTIONS];
 
 /**
  * Filterleiste der Leads-Liste: Zuständigkeit ("Meine Leads", einzelne

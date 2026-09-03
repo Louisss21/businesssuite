@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Field, Input, Select, Badge } from "@/components/ui";
-
-const STATUSES = ["NEW", "CONTACTED", "QUALIFIED", "LOST", "WON"];
+import { LEAD_STATUS_LABELS, LEAD_STATUS_OPTIONS } from "@/modules/crm/lead.schema";
 
 export interface LeadScalars {
   id: string;
@@ -92,7 +91,7 @@ export function LeadDetailForm({
           {lead.customerId ? (
             <Badge value="Umgewandelt" />
           ) : (
-            <Badge value={status} />
+            <Badge value={status} label={LEAD_STATUS_LABELS[status] ?? status} />
           )}
         </div>
         <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
@@ -120,9 +119,9 @@ export function LeadDetailForm({
           </Field>
           <Field label="Status">
             <Select name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {LEAD_STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </Select>

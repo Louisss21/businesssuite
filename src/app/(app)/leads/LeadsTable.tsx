@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Table, Th, Td, Empty } from "@/components/ui";
+import { LEAD_STATUS_OPTIONS } from "@/modules/crm/lead.schema";
 import { DeleteButton } from "@/components/DeleteButton";
 import { LeadStatusSelect } from "./LeadStatusSelect";
 import { LeadAssigneeSelect } from "./LeadAssigneeSelect";
@@ -28,13 +29,7 @@ export type LeadRow = {
   assignedName: string | null;
 };
 
-const STATUS_OPTIONS = [
-  { value: "NEW", label: "Neu" },
-  { value: "CONTACTED", label: "Kontaktiert" },
-  { value: "QUALIFIED", label: "Qualifiziert" },
-  { value: "WON", label: "Gewonnen" },
-  { value: "LOST", label: "Verloren" },
-];
+const STATUS_OPTIONS = LEAD_STATUS_OPTIONS;
 
 export function LeadsTable({
   rows,

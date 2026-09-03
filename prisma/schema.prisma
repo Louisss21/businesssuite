@@ -80,6 +80,8 @@ enum CustomerType {
 enum LeadStatus {
   NEW
   CONTACTED
+  CONTACTED_2 // 2. Kontaktversuch (Nachhaken)
+  CONTACTED_3 // 3. Kontaktversuch (Nachhaken)
   QUALIFIED
   LOST
   WON

@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db";
 import { AppError, notFound } from "@/lib/http";
-import { leadCreateSchema, leadStatuses, leadUpdateSchema, splitTags } from "./lead.schema";
+import {
+  contactedStatuses,
+  isContactedStatus,
+  leadCreateSchema,
+  leadStatuses,
+  leadUpdateSchema,
+  splitTags,
+} from "./lead.schema";
 
 const orNull = (v?: string | null) => (v ? v : null);
 
@@ -48,9 +55,12 @@ export const leadService = {
   async update(id: string, input: unknown) {
     const existing = await this.getById(id);
     const d = leadUpdateSchema.parse(input);
-    // A1: Übergang nach CONTACTED setzt contactedAt und startet den
+    // A1: Übergang in eine Kontakt-Stufe setzt contactedAt und startet den
     // Wiedervorlage-Zyklus neu (Flag zurück), sonst beide Felder unberührt.
-    const enteringContacted = d.status === "CONTACTED" && existing.status !== "CONTACTED";
+    // Auch der Wechsel CONTACTED -> CONTACTED_2/-_3 zählt als neuer Kontakt,
+    // damit die 14-Tage-Automatik nach jedem Nachhaken erneut greift.
+    const enteringContacted =
+      isContactedStatus(d.status) && d.status !== existing.status;
     return prisma.lead.update({
       where: { id },
       data: {
@@ -97,7 +107,7 @@ export const leadService = {
         throw new AppError("Ungültiger Status");
       }
       data.status = changes.status;
-      if (changes.status === "CONTACTED") {
+      if (isContactedStatus(changes.status)) {
         data.contactedAt = new Date();
         data.followupTaskCreated = false;
       }
@@ -241,10 +251,11 @@ export const leadService = {
   },
 
   /**
-   * A4: Wiedervorlage-Automatik. Für CONTACTED-Leads, deren Kontaktaufnahme
-   * >= 14 Tage zurückliegt und für die noch keine Follow-up-Aufgabe besteht,
-   * wird eine Telefon-Aufgabe angelegt. Idempotent über followupTaskCreated +
-   * Existenzprüfung. Wechselt der Lead vorher den Status, greift der Filter nicht.
+   * A4: Wiedervorlage-Automatik. Für Leads in einer Kontakt-Stufe (CONTACTED,
+   * CONTACTED_2, CONTACTED_3), deren Kontaktaufnahme >= 14 Tage zurückliegt und
+   * für die noch keine Follow-up-Aufgabe besteht, wird eine Telefon-Aufgabe
+   * angelegt. Idempotent über followupTaskCreated + Existenzprüfung. Wechselt
+   * der Lead vorher den Status, greift der Filter nicht.
    */
   async createDueFollowups() {
     const cutoff = new Date();
@@ -253,7 +264,7 @@ export const leadService = {
 
     const due = await prisma.lead.findMany({
       where: {
-        status: "CONTACTED",
+        status: { in: [...contactedStatuses] },
         followupTaskCreated: false,
         contactedAt: { not: null, lte: cutoff },
       },

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Field, Input, Select } from "@/components/ui";
+import { LEAD_STATUS_OPTIONS } from "@/modules/crm/lead.schema";
 
 type CustomerOption = { id: string; name: string };
 
@@ -45,11 +46,11 @@ export function LeadForm({ customers }: { customers: CustomerOption[] }) {
           </Field>
           <Field label="Status">
             <Select name="status" defaultValue="NEW">
-              <option value="NEW">NEW</option>
-              <option value="CONTACTED">CONTACTED</option>
-              <option value="QUALIFIED">QUALIFIED</option>
-              <option value="WON">WON</option>
-              <option value="LOST">LOST</option>
+              {LEAD_STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
             </Select>
           </Field>
           <Field label="Kunde (optional)">

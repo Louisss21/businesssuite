@@ -128,14 +128,18 @@ export function Field({
 const GREEN = "var(--st-green)";
 const ORANGE = "var(--st-orange)";
 const BLUE = "var(--st-blue)";
+const CYAN = "var(--st-cyan)";
 const VIOLET = "var(--st-violet)";
 const RED = "var(--st-red)";
 const GREY = "var(--st-grey)";
 
 export const BADGE_COLORS: Record<string, string> = {
-  // Lead – jeder Status ein eigener Farbton (beim Scrollen unterscheidbar)
+  // Lead – jeder Status ein eigener Farbton (beim Scrollen unterscheidbar).
+  // Die Kontakt-Stufen steigern sich blau -> cyan -> orange (Nachhaken).
   NEW: GREY,
   CONTACTED: BLUE,
+  CONTACTED_2: CYAN,
+  CONTACTED_3: ORANGE,
   QUALIFIED: VIOLET,
   WON: GREEN,
   LOST: RED,
@@ -151,14 +155,19 @@ export const BADGE_COLORS: Record<string, string> = {
   OVERDUE: RED,
 };
 
-export function Badge({ value }: { value: string }) {
+/**
+ * Status-Pille. `value` bestimmt die Farbe (Status-Code), `label` optional den
+ * angezeigten Text – so bleibt die Farbe korrekt, wenn ein deutscher
+ * Anzeigename statt des Codes ausgegeben wird.
+ */
+export function Badge({ value, label }: { value: string; label?: string }) {
   const color = BADGE_COLORS[value] ?? GREY;
   return (
     <span
       className="status-pill inline-flex items-center rounded-badge px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider"
       style={{ "--sc": color } as React.CSSProperties}
     >
-      {value}
+      {label ?? value}
     </span>
   );
 }

@@ -246,12 +246,12 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "update_lead_status",
-    description: "Setzt den Status eines Leads (NEW, CONTACTED, QUALIFIED, WON, LOST). Lead per Titel/E-Mail suchen.",
+    description: "Setzt den Status eines Leads (NEW, CONTACTED, CONTACTED_2, CONTACTED_3, QUALIFIED, WON, LOST; CONTACTED_2/_3 dokumentieren das Nachhaken). Lead per Titel/E-Mail suchen.",
     parameters: {
       type: "object",
       properties: {
         leadQuery: { type: "string", description: "Titel oder E-Mail des Leads" },
-        status: { type: "string", enum: ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"] },
+        status: { type: "string", enum: ["NEW", "CONTACTED", "CONTACTED_2", "CONTACTED_3", "QUALIFIED", "WON", "LOST"] },
       },
       required: ["leadQuery", "status"],
     },
@@ -384,11 +384,11 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_leads",
     description:
-      "Listet Leads, optional nach Status (NEW, CONTACTED, QUALIFIED, WON, LOST) und/oder zuständigem Mitarbeiter (Name).",
+      "Listet Leads, optional nach Status (NEW, CONTACTED, CONTACTED_2, CONTACTED_3, QUALIFIED, WON, LOST; CONTACTED_2/_3 dokumentieren das Nachhaken) und/oder zuständigem Mitarbeiter (Name).",
     parameters: {
       type: "object",
       properties: {
-        status: { type: "string", enum: ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"] },
+        status: { type: "string", enum: ["NEW", "CONTACTED", "CONTACTED_2", "CONTACTED_3", "QUALIFIED", "WON", "LOST"] },
         assignedTo: { type: "string", description: "Name des zuständigen Mitarbeiters (optional)" },
       },
       required: [],
@@ -610,7 +610,7 @@ const TOOLS: ToolDef[] = [
       type: "object",
       properties: {
         userNames: { type: "array", items: { type: "string" }, description: "Namen der Mitarbeiter" },
-        status: { type: "string", enum: ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"] },
+        status: { type: "string", enum: ["NEW", "CONTACTED", "CONTACTED_2", "CONTACTED_3", "QUALIFIED", "WON", "LOST"] },
       },
       required: ["userNames"],
     },
@@ -1423,7 +1423,10 @@ const SYSTEM_PROMPT = [
   "Du bist der System-Assistent der Sustable BusinessSuite (CRM/ERP, Tischfertigung).",
   "Du arbeitest wie ein professioneller Assistent: Erledige Aufträge direkt über die",
   "verfügbaren Werkzeuge – Leads, Kunden, Angebote, Bestellungen, Produkte, Produktion,",
-  "Lager, Rechnungen und Aufgaben kannst du abfragen und bearbeiten. Kombiniere Werkzeuge",
+  "Lager, Rechnungen, Kampagnen und Aufgaben kannst du abfragen, anlegen und bearbeiten.",
+  "Die Lead-Status CONTACTED, CONTACTED_2 und CONTACTED_3 sind Kontakt-Stufen zum",
+  "Dokumentieren des Nachhakens: Bei erneuter Kontaktaufnahme die nächste Stufe setzen.",
+  "Kombiniere Werkzeuge",
   "bei Bedarf (z. B. erst Mitarbeiter auflisten, dann Leads zuweisen). Antworte kurz,",
   "präzise und auf Deutsch. Wenn Angaben fehlen oder mehrdeutig sind, frage nach statt zu",
   "raten. Erfinde keine Daten. Als riskant markierte Aktionen erfordern eine Bestätigung",

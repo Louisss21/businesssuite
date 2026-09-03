@@ -2,18 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { leadStatuses } from "@/modules/crm/lead.schema";
+import { LEAD_STATUS_OPTIONS } from "@/modules/crm/lead.schema";
 import { BADGE_COLORS } from "@/components/ui";
 
-const LABELS: Record<string, string> = {
-  NEW: "Neu",
-  CONTACTED: "Kontaktiert",
-  QUALIFIED: "Qualifiziert",
-  WON: "Gewonnen",
-  LOST: "Verloren",
-};
-
-// Farbtöne kommen zentral aus ui.tsx (ein Farbton je Status, Theme-abhängig).
+// Labels und Reihenfolge kommen zentral aus lead.schema.ts,
+// Farbtöne aus ui.tsx (ein Farbton je Status, Theme-abhängig).
 
 /**
  * A1.2: Lead-Status direkt in der Liste änderbar. Speichert sofort per
@@ -47,9 +40,13 @@ export function LeadStatusSelect({ id, status }: { id: string; status: string })
       className="status-select rounded-badge border px-2 py-1 font-mono text-[11px] font-medium uppercase tracking-wider outline-none disabled:opacity-50"
       style={{ "--sc": color } as React.CSSProperties}
     >
-      {leadStatuses.map((s) => (
-        <option key={s} value={s} style={{ color: "var(--text)", background: "var(--surface-2)" }}>
-          {LABELS[s] ?? s}
+      {LEAD_STATUS_OPTIONS.map((s) => (
+        <option
+          key={s.value}
+          value={s.value}
+          style={{ color: "var(--text)", background: "var(--surface-2)" }}
+        >
+          {s.label}
         </option>
       ))}
     </select>

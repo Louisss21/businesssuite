@@ -8,6 +8,12 @@ import { taskService } from "@/modules/tasks/task.service";
 import { leadService } from "@/modules/crm/lead.service";
 import { orderService } from "@/modules/orders/order.service";
 import { invoiceService } from "@/modules/invoices/invoice.service";
+import { quoteService } from "@/modules/quotes/quote.service";
+import { productService } from "@/modules/products/product.service";
+import { productionService } from "@/modules/production/production.service";
+import { customerService, displayName } from "@/modules/crm/customer.service";
+import { customerCreateSchema } from "@/modules/crm/customer.schema";
+import { userService } from "@/modules/users/user.service";
 
 /**
  * System-Assistent (Chatbot): führt Änderungen über die BESTEHENDEN
@@ -71,6 +77,43 @@ async function findComponent(query: string) {
   });
   return hits;
 }
+
+async function findLeads(query: string) {
+  const q = query.trim();
+  return prisma.lead.findMany({
+    where: {
+      OR: [
+        { title: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { company: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    take: 5,
+  });
+}
+
+/** Aktiven Nutzer per Name oder E-Mail auflösen (eindeutig, sonst Fehlertext). */
+async function findUser(name: string): Promise<{ id: string; name: string } | string> {
+  const q = name.trim();
+  const hits = await prisma.user.findMany({
+    where: {
+      active: true,
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, name: true },
+    take: 3,
+  });
+  if (hits.length === 0) return `Kein aktiver Mitarbeiter zu "${q}" gefunden.`;
+  if (hits.length > 1) return `Mehrere Mitarbeiter gefunden (${hits.map((u) => u.name).join(", ")}) – bitte genauer angeben.`;
+  return hits[0];
+}
+
+const fmtDate = (d: Date | null | undefined) =>
+  d ? new Date(d).toLocaleDateString("de-DE") : "—";
+const fmtEur = (n: number) => `${Number(n).toFixed(2)} €`;
 
 const TOOLS: ToolDef[] = [
   {
@@ -270,6 +313,513 @@ const TOOLS: ToolDef[] = [
       return `Rechnung ${inv.invoiceNumber} auf ${str(a.status)} gesetzt.`;
     },
   },
+
+  // ---- Nutzer ----
+  {
+    name: "list_users",
+    description: "Listet alle Mitarbeiter (Name, Rolle, aktiv/inaktiv) – z. B. um Zuständigkeiten zu vergeben.",
+    parameters: { type: "object", properties: {}, required: [] },
+    module: "dashboard",
+    write: false,
+    risky: false,
+    summarize: () => "Mitarbeiter auflisten",
+    execute: async () => {
+      const users = await userService.list();
+      return users
+        .map((u) => `${u.name} · ${u.role}${u.active ? "" : " · inaktiv"}`)
+        .join("\n");
+    },
+  },
+
+  // ---- Leads ----
+  {
+    name: "list_leads",
+    description:
+      "Listet Leads, optional nach Status (NEW, CONTACTED, QUALIFIED, WON, LOST) und/oder zuständigem Mitarbeiter (Name).",
+    parameters: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"] },
+        assignedTo: { type: "string", description: "Name des zuständigen Mitarbeiters (optional)" },
+      },
+      required: [],
+    },
+    module: "leads",
+    write: false,
+    risky: false,
+    summarize: (a) => `Leads listen${a.status ? ` (${str(a.status)})` : ""}`,
+    execute: async (a) => {
+      let assignedUserId: string | undefined;
+      if (a.assignedTo) {
+        const u = await findUser(str(a.assignedTo));
+        if (typeof u === "string") return u;
+        assignedUserId = u.id;
+      }
+      const leads = await prisma.lead.findMany({
+        where: { status: a.status ? (str(a.status) as never) : undefined, assignedUserId },
+        orderBy: { updatedAt: "desc" },
+        take: 30,
+      });
+      if (leads.length === 0) return "Keine Leads gefunden.";
+      const users = await prisma.user.findMany({ select: { id: true, name: true } });
+      const names = new Map(users.map((u) => [u.id, u.name]));
+      return leads
+        .map(
+          (l) =>
+            `${l.title} · ${l.status} · Score ${l.score} · Zuständig: ${
+              l.assignedUserId ? (names.get(l.assignedUserId) ?? "Unbekannt") : "—"
+            }`,
+        )
+        .join("\n");
+    },
+  },
+  {
+    name: "create_lead",
+    description: "Legt einen neuen Lead an (Titel; optional Kontakt- und Firmendaten, Quelle).",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        firstName: { type: "string" },
+        lastName: { type: "string" },
+        company: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+        source: { type: "string" },
+      },
+      required: ["title"],
+    },
+    module: "leads",
+    write: true,
+    risky: false,
+    summarize: (a) => `Lead anlegen: "${str(a.title)}"`,
+    execute: async (a) => {
+      const lead = await leadService.create({
+        title: str(a.title),
+        firstName: a.firstName ? str(a.firstName) : "",
+        lastName: a.lastName ? str(a.lastName) : "",
+        company: a.company ? str(a.company) : "",
+        email: a.email ? str(a.email) : "",
+        phone: a.phone ? str(a.phone) : "",
+        source: a.source ? str(a.source) : "",
+      });
+      return `Lead "${lead.title}" angelegt.`;
+    },
+  },
+  {
+    name: "assign_lead",
+    description:
+      "Setzt den zuständigen Mitarbeiter eines Leads. Lead per Titel/E-Mail/Firma, Mitarbeiter per Name. Leerer Name entfernt die Zuweisung.",
+    parameters: {
+      type: "object",
+      properties: {
+        leadQuery: { type: "string", description: "Titel, E-Mail oder Firma des Leads" },
+        userName: { type: "string", description: "Name des Mitarbeiters; leer = Zuweisung entfernen" },
+      },
+      required: ["leadQuery"],
+    },
+    module: "leads",
+    write: true,
+    risky: false,
+    summarize: (a) =>
+      a.userName
+        ? `Lead "${str(a.leadQuery)}" an ${str(a.userName)} zuweisen`
+        : `Zuweisung von Lead "${str(a.leadQuery)}" entfernen`,
+    execute: async (a) => {
+      const hits = await findLeads(str(a.leadQuery));
+      if (hits.length === 0) return `Kein Lead zu "${str(a.leadQuery)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Leads gefunden (${hits.map((l) => l.title).join(", ")}) – bitte genauer angeben.`;
+      if (!a.userName || !str(a.userName).trim()) {
+        await leadService.update(hits[0].id, { assignedUserId: "" });
+        return `Zuweisung von Lead "${hits[0].title}" entfernt.`;
+      }
+      const u = await findUser(str(a.userName));
+      if (typeof u === "string") return u;
+      await leadService.update(hits[0].id, { assignedUserId: u.id });
+      return `Lead "${hits[0].title}" ist jetzt ${u.name} zugewiesen.`;
+    },
+  },
+  {
+    name: "distribute_leads",
+    description:
+      "RISKANT: Verteilt Leads gleichmäßig (Round-Robin) auf mehrere Mitarbeiter, optional gefiltert nach Status. Überschreibt bestehende Zuweisungen.",
+    parameters: {
+      type: "object",
+      properties: {
+        userNames: { type: "array", items: { type: "string" }, description: "Namen der Mitarbeiter" },
+        status: { type: "string", enum: ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"] },
+      },
+      required: ["userNames"],
+    },
+    module: "leads",
+    write: true,
+    risky: true,
+    summarize: (a) =>
+      `Leads${a.status ? ` (${str(a.status)})` : ""} gleichmäßig auf ${(Array.isArray(a.userNames) ? a.userNames : []).map(str).join(", ")} verteilen`,
+    execute: async (a) => {
+      const names = Array.isArray(a.userNames) ? a.userNames.map(str) : [];
+      if (names.length === 0) return "Keine Mitarbeiter angegeben.";
+      const users: { id: string; name: string }[] = [];
+      for (const n of names) {
+        const u = await findUser(n);
+        if (typeof u === "string") return u;
+        users.push(u);
+      }
+      const leads = await prisma.lead.findMany({
+        where: { status: a.status ? (str(a.status) as never) : undefined },
+        orderBy: { createdAt: "asc" },
+      });
+      if (leads.length === 0) return "Keine passenden Leads gefunden.";
+      for (let i = 0; i < leads.length; i++) {
+        await prisma.lead.update({
+          where: { id: leads[i].id },
+          data: { assignedUserId: users[i % users.length].id },
+        });
+      }
+      const perUser = users
+        .map((u, idx) => `${u.name}: ${leads.filter((_, i) => i % users.length === idx).length}`)
+        .join(", ");
+      return `${leads.length} Leads verteilt (${perUser}).`;
+    },
+  },
+
+  // ---- Kunden (CRM) ----
+  {
+    name: "find_customer",
+    description: "Sucht Kunden nach Name/Firma/E-Mail und zeigt Kontaktdaten und Einstufung.",
+    parameters: {
+      type: "object",
+      properties: { query: { type: "string" } },
+      required: ["query"],
+    },
+    module: "crm",
+    write: false,
+    risky: false,
+    summarize: (a) => `Kunde suchen: ${str(a.query)}`,
+    execute: async (a) => {
+      const hits = await customerService.list({ search: str(a.query) });
+      if (hits.length === 0) return `Kein Kunde zu "${str(a.query)}" gefunden.`;
+      return hits
+        .slice(0, 5)
+        .map((c) => `${displayName(c)} · ${c.email ?? "—"} · ${c.phone ?? "—"}${c.classification ? ` · ${c.classification}` : ""}`)
+        .join("\n");
+    },
+  },
+  {
+    name: "create_customer",
+    description:
+      "Legt einen neuen Kunden an. type COMPANY braucht companyName, type PRIVATE braucht firstName+lastName.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["COMPANY", "PRIVATE"] },
+        companyName: { type: "string" },
+        firstName: { type: "string" },
+        lastName: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+        city: { type: "string" },
+      },
+      required: ["type"],
+    },
+    module: "crm",
+    write: true,
+    risky: false,
+    summarize: (a) => `Kunde anlegen: ${str(a.companyName || `${a.firstName ?? ""} ${a.lastName ?? ""}`).trim()}`,
+    execute: async (a) => {
+      const input = customerCreateSchema.parse({
+        type: str(a.type),
+        companyName: a.companyName ? str(a.companyName) : undefined,
+        firstName: a.firstName ? str(a.firstName) : undefined,
+        lastName: a.lastName ? str(a.lastName) : undefined,
+        email: a.email ? str(a.email) : "",
+        phone: a.phone ? str(a.phone) : undefined,
+        city: a.city ? str(a.city) : undefined,
+      });
+      const c = await customerService.create(input);
+      return `Kunde "${displayName(c)}" angelegt.`;
+    },
+  },
+  {
+    name: "update_customer",
+    description: "Aktualisiert Kontaktdaten/Notizen/Einstufung eines Kunden (per Name/Firma/E-Mail suchen).",
+    parameters: {
+      type: "object",
+      properties: {
+        customerQuery: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+        notes: { type: "string" },
+        classification: { type: "string", enum: ["A-Kunde", "B-Kunde", "C-Kunde", "VIP"] },
+      },
+      required: ["customerQuery"],
+    },
+    module: "crm",
+    write: true,
+    risky: false,
+    summarize: (a) => `Kunde "${str(a.customerQuery)}" aktualisieren`,
+    execute: async (a) => {
+      const hits = await customerService.list({ search: str(a.customerQuery) });
+      if (hits.length === 0) return `Kein Kunde zu "${str(a.customerQuery)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Kunden gefunden (${hits.slice(0, 5).map(displayName).join(", ")}) – bitte genauer angeben.`;
+      const changes: Record<string, unknown> = {};
+      if (a.email !== undefined) changes.email = str(a.email);
+      if (a.phone !== undefined) changes.phone = str(a.phone);
+      if (a.notes !== undefined) changes.notes = str(a.notes);
+      if (a.classification !== undefined) changes.classification = str(a.classification);
+      if (Object.keys(changes).length === 0) return "Keine Änderungen angegeben.";
+      await customerService.update(hits[0].id, changes);
+      return `Kunde "${displayName(hits[0])}" aktualisiert.`;
+    },
+  },
+
+  // ---- Angebote ----
+  {
+    name: "list_quotes",
+    description: "Listet Angebote, optional nach Status (DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED).",
+    parameters: {
+      type: "object",
+      properties: { status: { type: "string", enum: ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] } },
+      required: [],
+    },
+    module: "quotes",
+    write: false,
+    risky: false,
+    summarize: (a) => `Angebote listen${a.status ? ` (${str(a.status)})` : ""}`,
+    execute: async (a) => {
+      const quotes = await quoteService.list({ status: a.status ? str(a.status) : undefined });
+      if (quotes.length === 0) return "Keine Angebote gefunden.";
+      return quotes
+        .slice(0, 15)
+        .map((q) => `${q.number} · ${displayName(q.customer)} · ${q.status} · ${fmtEur(q.grossTotal)}`)
+        .join("\n");
+    },
+  },
+  {
+    name: "update_quote_status",
+    description: "Setzt den Status eines Angebots anhand der Angebotsnummer (DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED).",
+    parameters: {
+      type: "object",
+      properties: {
+        quoteNumber: { type: "string" },
+        status: { type: "string", enum: ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] },
+      },
+      required: ["quoteNumber", "status"],
+    },
+    module: "quotes",
+    write: true,
+    risky: false,
+    summarize: (a) => `Angebot ${str(a.quoteNumber)} auf ${str(a.status)} setzen`,
+    execute: async (a) => {
+      const q = await prisma.quote.findUnique({ where: { number: str(a.quoteNumber).trim() } });
+      if (!q) return `Angebot ${str(a.quoteNumber)} nicht gefunden.`;
+      await quoteService.bulkUpdate([q.id], { status: str(a.status) });
+      return `Angebot ${q.number} auf ${str(a.status)} gesetzt.`;
+    },
+  },
+  {
+    name: "convert_quote_to_order",
+    description: "RISKANT: Wandelt ein Angebot in eine Bestellung um (per Angebotsnummer).",
+    parameters: {
+      type: "object",
+      properties: { quoteNumber: { type: "string" } },
+      required: ["quoteNumber"],
+    },
+    module: "quotes",
+    write: true,
+    risky: true,
+    summarize: (a) => `Angebot ${str(a.quoteNumber)} in Bestellung umwandeln`,
+    execute: async (a) => {
+      const q = await prisma.quote.findUnique({ where: { number: str(a.quoteNumber).trim() } });
+      if (!q) return `Angebot ${str(a.quoteNumber)} nicht gefunden.`;
+      const order = await quoteService.convertToOrder(q.id);
+      return `Angebot ${q.number} in Bestellung ${order.orderNumber} umgewandelt.`;
+    },
+  },
+
+  // ---- Produkte ----
+  {
+    name: "find_product",
+    description: "Sucht Produkte nach Name oder SKU und zeigt Preis, Bestand und Status.",
+    parameters: {
+      type: "object",
+      properties: { query: { type: "string" } },
+      required: ["query"],
+    },
+    module: "products",
+    write: false,
+    risky: false,
+    summarize: (a) => `Produkt suchen: ${str(a.query)}`,
+    execute: async (a) => {
+      const hits = await productService.list({ search: str(a.query) });
+      if (hits.length === 0) return `Kein Produkt zu "${str(a.query)}" gefunden.`;
+      return hits
+        .slice(0, 5)
+        .map((p) => `${p.name} (${p.sku}) · ${fmtEur(p.priceNet)} netto · Bestand ${p.stockQty}${p.active ? "" : " · inaktiv"}`)
+        .join("\n");
+    },
+  },
+  {
+    name: "update_product_price",
+    description: "RISKANT: Setzt den Netto-Preis eines Produkts (Name oder SKU).",
+    parameters: {
+      type: "object",
+      properties: {
+        product: { type: "string", description: "Name oder SKU" },
+        priceNet: { type: "number" },
+      },
+      required: ["product", "priceNet"],
+    },
+    module: "products",
+    write: true,
+    risky: true,
+    summarize: (a) => `Preis von "${str(a.product)}" auf ${num(a.priceNet).toFixed(2)} € netto setzen`,
+    execute: async (a) => {
+      const hits = await productService.list({ search: str(a.product) });
+      if (hits.length === 0) return `Kein Produkt zu "${str(a.product)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Produkte gefunden (${hits.slice(0, 5).map((p) => p.sku).join(", ")}) – bitte SKU angeben.`;
+      await productService.update(hits[0].id, { priceNet: num(a.priceNet) });
+      return `Preis von ${hits[0].name} (${hits[0].sku}) auf ${fmtEur(num(a.priceNet))} netto gesetzt.`;
+    },
+  },
+
+  // ---- Produktion ----
+  {
+    name: "list_production_orders",
+    description: "Listet Produktionsaufträge, optional nach Status (IN_PROGRESS, COMPLETED, CANCELLED).",
+    parameters: {
+      type: "object",
+      properties: { status: { type: "string", enum: ["IN_PROGRESS", "COMPLETED", "CANCELLED"] } },
+      required: [],
+    },
+    module: "production",
+    write: false,
+    risky: false,
+    summarize: (a) => `Produktionsaufträge listen${a.status ? ` (${str(a.status)})` : ""}`,
+    execute: async (a) => {
+      const orders = await productionService.listOrders({ status: a.status ? str(a.status) : undefined });
+      if (orders.length === 0) return "Keine Produktionsaufträge gefunden.";
+      return orders
+        .slice(0, 15)
+        .map((o) => `${o.serialNumber ?? "(ohne Seriennummer)"} · ${o.tableModel.name} · ${o.status} · Schritt ${o.currentStep}`)
+        .join("\n");
+    },
+  },
+  {
+    name: "complete_production_step",
+    description: "RISKANT: Schließt den aktuellen Arbeitsschritt eines Produktionsauftrags ab (per Seriennummer); bucht ggf. Material.",
+    parameters: {
+      type: "object",
+      properties: { serialNumber: { type: "string" } },
+      required: ["serialNumber"],
+    },
+    module: "production",
+    write: true,
+    risky: true,
+    summarize: (a) => `Aktuellen Schritt von Produktion ${str(a.serialNumber)} abschließen`,
+    execute: async (a) => {
+      const hits = await productionService.listOrders({ search: str(a.serialNumber).trim() });
+      if (hits.length === 0) return `Kein Produktionsauftrag zu "${str(a.serialNumber)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Aufträge gefunden (${hits.map((o) => o.serialNumber).join(", ")}) – bitte genauer angeben.`;
+      const result = await productionService.completeStep(hits[0].id);
+      const lowStockNote =
+        result.lowStock.length > 0 ? ` Achtung, unter Mindestbestand: ${result.lowStock.join(", ")}.` : "";
+      return result.completed
+        ? `Produktion ${hits[0].serialNumber} abgeschlossen.${lowStockNote}`
+        : `Schritt ${hits[0].currentStep} erledigt – ${hits[0].serialNumber} steht jetzt auf Schritt ${hits[0].currentStep + 1}.${lowStockNote}`;
+    },
+  },
+
+  // ---- Rechnungen ----
+  {
+    name: "list_invoices",
+    description: "Listet Rechnungen, optional nach Status (OPEN, PAID, OVERDUE, CANCELLED).",
+    parameters: {
+      type: "object",
+      properties: { status: { type: "string", enum: ["OPEN", "PAID", "OVERDUE", "CANCELLED"] } },
+      required: [],
+    },
+    module: "invoices",
+    write: false,
+    risky: false,
+    summarize: (a) => `Rechnungen listen${a.status ? ` (${str(a.status)})` : ""}`,
+    execute: async (a) => {
+      const invoices = await invoiceService.list({ status: a.status ? str(a.status) : undefined });
+      if (invoices.length === 0) return "Keine Rechnungen gefunden.";
+      return invoices
+        .slice(0, 15)
+        .map((i) => `${i.invoiceNumber} · ${displayName(i.customer)} · ${i.status} · ${fmtEur(Number(i.grossTotal))} · fällig ${fmtDate(i.dueDate)}`)
+        .join("\n");
+    },
+  },
+  {
+    name: "create_dunning",
+    description: "RISKANT: Erstellt eine Mahnung zu einer überfälligen Rechnung (per Rechnungsnummer).",
+    parameters: {
+      type: "object",
+      properties: { invoiceNumber: { type: "string" } },
+      required: ["invoiceNumber"],
+    },
+    module: "invoices",
+    write: true,
+    risky: true,
+    summarize: (a) => `Mahnung zu Rechnung ${str(a.invoiceNumber)} erstellen`,
+    execute: async (a) => {
+      const inv = await prisma.invoice.findUnique({ where: { invoiceNumber: str(a.invoiceNumber).trim() } });
+      if (!inv) return `Rechnung ${str(a.invoiceNumber)} nicht gefunden.`;
+      const dunning = await invoiceService.createDunning(inv.id);
+      return `Mahnung (Stufe ${dunning.level}, Gebühr ${fmtEur(dunning.fee)}) zu Rechnung ${inv.invoiceNumber} erstellt.`;
+    },
+  },
+
+  // ---- Aufgaben ----
+  {
+    name: "list_tasks",
+    description: "Listet Aufgaben, optional nach Status (OPEN, IN_PROGRESS, DONE, CANCELLED).",
+    parameters: {
+      type: "object",
+      properties: { status: { type: "string", enum: ["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"] } },
+      required: [],
+    },
+    module: "tasks",
+    write: false,
+    risky: false,
+    summarize: (a) => `Aufgaben listen${a.status ? ` (${str(a.status)})` : ""}`,
+    execute: async (a) => {
+      const tasks = await taskService.list({ status: a.status ? str(a.status) : undefined });
+      if (tasks.length === 0) return "Keine Aufgaben gefunden.";
+      return tasks
+        .slice(0, 20)
+        .map((t) => `${t.title} · ${t.status} · ${t.priority} · fällig ${fmtDate(t.dueAt)}`)
+        .join("\n");
+    },
+  },
+  {
+    name: "complete_task",
+    description: "Markiert eine Aufgabe als erledigt (Suche per Titel).",
+    parameters: {
+      type: "object",
+      properties: { query: { type: "string", description: "Titel (oder Teil davon)" } },
+      required: ["query"],
+    },
+    module: "tasks",
+    write: true,
+    risky: false,
+    summarize: (a) => `Aufgabe "${str(a.query)}" als erledigt markieren`,
+    execute: async (a) => {
+      const hits = await prisma.task.findMany({
+        where: {
+          title: { contains: str(a.query).trim(), mode: "insensitive" },
+          status: { in: ["OPEN", "IN_PROGRESS"] },
+        },
+        take: 3,
+      });
+      if (hits.length === 0) return `Keine offene Aufgabe zu "${str(a.query)}" gefunden.`;
+      if (hits.length > 1) return `Mehrere Aufgaben gefunden (${hits.map((t) => t.title).join(", ")}) – bitte genauer angeben.`;
+      await taskService.update(hits[0].id, { status: "DONE" });
+      return `Aufgabe "${hits[0].title}" als erledigt markiert.`;
+    },
+  },
 ];
 
 function allowed(tool: ToolDef, role: Role): boolean {
@@ -306,9 +856,13 @@ function resolveAnthropicKey(): string | undefined {
 
 const SYSTEM_PROMPT = [
   "Du bist der System-Assistent der Sustable BusinessSuite (CRM/ERP, Tischfertigung).",
-  "Antworte kurz, präzise und auf Deutsch. Nutze die verfügbaren Werkzeuge, um Daten",
-  "abzufragen oder Änderungen auszuführen. Wenn Angaben fehlen (z. B. welche Bestellung),",
-  "frage nach statt zu raten. Erfinde keine Daten.",
+  "Du arbeitest wie ein professioneller Assistent: Erledige Aufträge direkt über die",
+  "verfügbaren Werkzeuge – Leads, Kunden, Angebote, Bestellungen, Produkte, Produktion,",
+  "Lager, Rechnungen und Aufgaben kannst du abfragen und bearbeiten. Kombiniere Werkzeuge",
+  "bei Bedarf (z. B. erst Mitarbeiter auflisten, dann Leads zuweisen). Antworte kurz,",
+  "präzise und auf Deutsch. Wenn Angaben fehlen oder mehrdeutig sind, frage nach statt zu",
+  "raten. Erfinde keine Daten. Als riskant markierte Aktionen erfordern eine Bestätigung",
+  "durch den Nutzer – kündige sie entsprechend an.",
 ].join(" ");
 
 export async function chat(messages: ChatMessage[], ctx: Ctx): Promise<AssistantResult> {
@@ -331,7 +885,7 @@ export async function chat(messages: ChatMessage[], ctx: Ctx): Promise<Assistant
 
   const convo: Anthropic.MessageParam[] = messages.map((m) => ({ role: m.role, content: m.content }));
 
-  for (let round = 0; round < 5; round++) {
+  for (let round = 0; round < 8; round++) {
     let response: Anthropic.Message;
     try {
       response = await client.messages.create({

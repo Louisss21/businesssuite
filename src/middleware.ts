@@ -3,10 +3,12 @@ import type { Role } from "@/lib/auth";
 import { canAccessApi, canAccessPage } from "@/lib/permissions";
 import {
   apiTokenFromHeaders,
+  apiTokenFromQuery,
   apiTokenReadOnly,
   apiTokenRole,
   isValidApiToken,
   isWriteMethod,
+  queryTokenAllowed,
 } from "@/lib/api-token";
 
 /**
@@ -45,21 +47,41 @@ export function middleware(req: NextRequest) {
 
   // Externe Systeme (z. B. ein Claude-Cowork-Chat) melden sich per
   // API-Schluessel statt per Cookie an. Gilt ausschliesslich fuer /api/*.
+  // Bevorzugt per Kopfzeile; als Notloesung fuer Werkzeuge ohne eigene
+  // Header-Unterstuetzung optional per URL-Parameter (siehe api-token.ts).
   if (isApi) {
-    const apiToken = apiTokenFromHeaders(req.headers);
+    const headerToken = apiTokenFromHeaders(req.headers);
+    const queryToken =
+      !headerToken && queryTokenAllowed() ? apiTokenFromQuery(req.nextUrl.searchParams) : null;
+    const apiToken = headerToken ?? queryToken;
+
     if (apiToken) {
       if (!isValidApiToken(apiToken)) {
         return NextResponse.json({ error: "Ungueltiger API-Schluessel" }, { status: 401 });
       }
-      if (apiTokenReadOnly() && isWriteMethod(req.method)) {
+      // Ein per URL uebergebener Schluessel kann in Logs/Verlaeufen landen -
+      // deshalb IMMER nur lesend, unabhaengig von BS_API_READONLY.
+      const readOnly = apiTokenReadOnly() || !!queryToken;
+      if (readOnly && isWriteMethod(req.method)) {
         return NextResponse.json(
-          { error: "API-Zugang ist auf Lesen beschraenkt (BS_API_READONLY)" },
+          {
+            error: queryToken
+              ? "Schluessel als URL-Parameter ist nur lesend erlaubt – fuer Schreibzugriff die Authorization-Kopfzeile nutzen"
+              : "API-Zugang ist auf Lesen beschraenkt (BS_API_READONLY)",
+          },
           { status: 403 },
         );
       }
       const apiRole = apiTokenRole() as Role;
       if (!canAccessApi(apiRole, req.method, pathname)) {
         return NextResponse.json({ error: "Kein Zugriff (Rolle)" }, { status: 403 });
+      }
+      // lib/auth.ts liest den Schluessel nur aus Kopfzeilen – bei
+      // Query-Param-Auth deshalb synthetisch als Header durchreichen.
+      if (queryToken) {
+        const outHeaders = new Headers(req.headers);
+        outHeaders.set("x-api-key", queryToken);
+        return NextResponse.next({ request: { headers: outHeaders } });
       }
       return NextResponse.next();
     }

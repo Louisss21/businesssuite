@@ -4,13 +4,22 @@
  *
  *   Authorization: Bearer <BS_API_TOKEN>      (empfohlen)
  *   x-api-key: <BS_API_TOKEN>                 (Alternative)
+ *   ?api_key=<BS_API_TOKEN>                   (Notlösung, siehe unten)
  *
  * Env-Variablen:
- *   BS_API_TOKEN      Schlüssel; nicht gesetzt oder < 24 Zeichen = Zugang AUS
- *   BS_API_ROLE       Rolle, mit der der Zugang arbeitet (Standard: ADMIN)
- *   BS_API_READONLY   "true" = nur lesende Zugriffe (GET/HEAD) erlaubt
- *   BS_API_USER_EMAIL Konto, dem Änderungen zugeschrieben werden
- *                     (Standard: erster aktiver Admin)
+ *   BS_API_TOKEN           Schlüssel; nicht gesetzt oder < 24 Zeichen = Zugang AUS
+ *   BS_API_ROLE            Rolle, mit der der Zugang arbeitet (Standard: ADMIN)
+ *   BS_API_READONLY        "true" = nur lesende Zugriffe (GET/HEAD) erlaubt
+ *   BS_API_USER_EMAIL      Konto, dem Änderungen zugeschrieben werden
+ *                          (Standard: erster aktiver Admin)
+ *   BS_API_ALLOW_QUERY_TOKEN  "true" = Schlüssel zusätzlich als URL-Parameter
+ *                          (?api_key=... oder ?token=...) erlauben. Nur für
+ *                          Werkzeuge nötig, die keine eigenen Kopfzeilen
+ *                          setzen können. SICHERHEITSHINWEIS: URLs landen in
+ *                          Server-Logs, Proxys und Browser-Verläufen – ein so
+ *                          übergebener Schlüssel ist deshalb IMMER nur lesend,
+ *                          unabhängig von BS_API_READONLY (siehe Middleware).
+ *                          Standard: aus.
  *
  * Läuft auch im Edge-Runtime der Middleware: kein node:crypto, kein DB-Zugriff.
  */
@@ -33,6 +42,21 @@ export function apiTokenFromHeaders(h: { get(name: string): string | null }): st
     if (m) return m[1].trim();
   }
   return h.get("x-api-key")?.trim() || null;
+}
+
+/**
+ * Schlüssel als URL-Parameter lesen (?api_key=... oder ?token=...). Nur
+ * aufrufen, wenn queryTokenAllowed() zuvor geprüft wurde – der Aufrufer muss
+ * anschließend zusätzlich erzwingen, dass ein so gefundener Schlüssel nie
+ * schreibende Zugriffe erhält (siehe Modul-Kommentar oben).
+ */
+export function apiTokenFromQuery(search: URLSearchParams): string | null {
+  return search.get("api_key")?.trim() || search.get("token")?.trim() || null;
+}
+
+/** Ist die URL-Parameter-Variante überhaupt zugelassen? Standard: aus. */
+export function queryTokenAllowed(): boolean {
+  return process.env.BS_API_ALLOW_QUERY_TOKEN?.trim().toLowerCase() === "true";
 }
 
 /** Ist der API-Zugang überhaupt eingeschaltet (gültiger Schlüssel hinterlegt)? */

@@ -28,6 +28,22 @@ x-api-key: DEIN_SCHLUESSEL
 
 Den Schlüssel bekommst du separat (nicht per E-Mail/Chat im Klartext weitergeben).
 
+### Falls dein Werkzeug keine eigenen Kopfzeilen setzen kann
+
+Manche Agenten/Werkzeuge können bei einem Web-Abruf nur die Adresse wählen,
+aber keine `Authorization`-Kopfzeile mitschicken. Für diesen Fall kann der
+Betreiber den Schlüssel zusätzlich als URL-Parameter erlauben:
+
+```
+https://businesssuite.vercel.app/api/leads?api_key=DEIN_SCHLUESSEL
+```
+
+**Das funktioniert nur, wenn der Betreiber es aktiviert hat**
+(`BS_API_ALLOW_QUERY_TOKEN=true`) – sonst kommt `401`. Und: dieser Weg ist
+**immer nur lesend**, egal welche Rechte der Schlüssel sonst hat – URLs
+landen in Logs und Verläufen, deshalb kann darüber nichts geändert oder
+gelöscht werden. Für Schreibzugriff bleibt die Kopfzeile Pflicht.
+
 ### Verbindung testen
 
 ```bash
@@ -132,6 +148,7 @@ In Vercel unter *Settings → Environment Variables* setzen:
 | `BS_API_ROLE` | nein | Rolle des Zugangs (`ADMIN`, `SALES`, `MARKETING`, `WAREHOUSE`, `ACCOUNTING`). Standard `ADMIN`. |
 | `BS_API_READONLY` | nein | `true` = nur lesen. |
 | `BS_API_USER_EMAIL` | nein | Konto für die Zuschreibung von Änderungen. |
+| `BS_API_ALLOW_QUERY_TOKEN` | nein | `true` = Schlüssel zusätzlich als `?api_key=...` erlauben (immer nur lesend). Nur setzen, wenn ein Werkzeug keine Kopfzeilen unterstützt. |
 
 Schlüssel erzeugen (Terminal):
 

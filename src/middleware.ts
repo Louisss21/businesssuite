@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Role } from "@/lib/auth";
 import { canAccessApi, canAccessPage } from "@/lib/permissions";
+import {
+  apiTokenFromHeaders,
+  apiTokenReadOnly,
+  apiTokenRole,
+  isValidApiToken,
+  isWriteMethod,
+} from "@/lib/api-token";
 
 /**
  * Zugriffs-Schranke (Edge):
@@ -35,6 +42,28 @@ export function middleware(req: NextRequest) {
 
   const token = req.cookies.get("bs_session")?.value;
   const isApi = pathname.startsWith("/api");
+
+  // Externe Systeme (z. B. ein Claude-Cowork-Chat) melden sich per
+  // API-Schluessel statt per Cookie an. Gilt ausschliesslich fuer /api/*.
+  if (isApi) {
+    const apiToken = apiTokenFromHeaders(req.headers);
+    if (apiToken) {
+      if (!isValidApiToken(apiToken)) {
+        return NextResponse.json({ error: "Ungueltiger API-Schluessel" }, { status: 401 });
+      }
+      if (apiTokenReadOnly() && isWriteMethod(req.method)) {
+        return NextResponse.json(
+          { error: "API-Zugang ist auf Lesen beschraenkt (BS_API_READONLY)" },
+          { status: 403 },
+        );
+      }
+      const apiRole = apiTokenRole() as Role;
+      if (!canAccessApi(apiRole, req.method, pathname)) {
+        return NextResponse.json({ error: "Kein Zugriff (Rolle)" }, { status: 403 });
+      }
+      return NextResponse.next();
+    }
+  }
 
   if (!token) {
     if (isApi) return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });

@@ -1,8 +1,14 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { unauthorized } from "./http";
+import {
+  apiAccessEnabled,
+  apiTokenFromHeaders,
+  apiTokenRole,
+  isValidApiToken,
+} from "./api-token";
 
 /**
  * Bewusst minimale, aber produktionsnah strukturierte Auth:
@@ -70,9 +76,45 @@ export function destroySession() {
   cookies().delete(COOKIE);
 }
 
+const ALL_ROLES: Role[] = ["ADMIN", "SALES", "MARKETING", "WAREHOUSE", "ACCOUNTING", "MEMBER"];
+
+/**
+ * Identität für Zugriffe per API-Schlüssel (externe Systeme, siehe
+ * lib/api-token.ts). Die Rolle kommt aus BS_API_ROLE – derselben Quelle, die
+ * auch die Middleware prüft, damit beide Schranken nicht auseinanderlaufen.
+ * Das Konto dient der Nachvollziehbarkeit (wer hat was geändert):
+ * BS_API_USER_EMAIL, sonst der erste aktive Admin.
+ */
+async function apiTokenUser(): Promise<SessionUser | null> {
+  if (!apiAccessEnabled()) return null;
+
+  let provided: string | null = null;
+  try {
+    provided = apiTokenFromHeaders(headers());
+  } catch {
+    return null; // ausserhalb eines Requests (z. B. beim Build) nicht verfügbar
+  }
+  if (!isValidApiToken(provided)) return null;
+
+  const select = { id: true, email: true, name: true, active: true } as const;
+  const email = process.env.BS_API_USER_EMAIL?.trim();
+  const account = email
+    ? await prisma.user.findUnique({ where: { email }, select })
+    : await prisma.user.findFirst({
+        where: { active: true, role: "ADMIN" },
+        orderBy: { createdAt: "asc" },
+        select,
+      });
+  if (!account || !account.active) return null;
+
+  const configured = apiTokenRole() as Role;
+  const role: Role = ALL_ROLES.includes(configured) ? configured : "ADMIN";
+  return { id: account.id, email: account.email, name: account.name, role };
+}
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = cookies().get(COOKIE)?.value;
-  if (!token) return null;
+  if (!token) return apiTokenUser();
   const value = unsign(token);
   if (!value) return null;
   // value = "userId" (Legacy) oder "userId|ROLE"

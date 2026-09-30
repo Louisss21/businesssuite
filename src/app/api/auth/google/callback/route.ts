@@ -36,7 +36,10 @@ export async function GET(req: NextRequest) {
   let identity;
   try {
     identity = await exchangeGoogleCode(code);
-  } catch {
+  } catch (err) {
+    // Temporär geloggt, um die Ursache des Token-Austauschs in den Vercel-
+    // Logs sichtbar zu machen (kein Secret im Fehlertext von google-auth-library).
+    console.error("Google-Token-Austausch fehlgeschlagen:", err);
     return loginError(req, "google_exchange");
   }
 

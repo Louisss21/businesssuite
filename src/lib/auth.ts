@@ -9,6 +9,22 @@ import {
   apiTokenRole,
   isValidApiToken,
 } from "./api-token";
+import { googleSsoEnabled } from "./google-oauth";
+
+/**
+ * Ist der Passwort-Login (E-Mail/Passwort) erlaubt?
+ *
+ * Solange Google SSO noch nicht eingerichtet ist (Standardzustand), bleibt
+ * Passwort-Login aktiv – sonst käme niemand mehr rein. Sobald Google SSO
+ * konfiguriert ist, schaltet sich Passwort-Login automatisch ab (so gewollt:
+ * Zugang dann nur noch über die Firmen-Google-Konten). Ein Admin kann das
+ * per AUTH_ALLOW_PASSWORD_LOGIN="true" als Notfall-Zugang wieder freischalten,
+ * z. B. bei einem Ausfall von Google, ohne Code-Änderung.
+ */
+export function passwordLoginAllowed(): boolean {
+  if (process.env.AUTH_ALLOW_PASSWORD_LOGIN?.trim().toLowerCase() === "true") return true;
+  return !googleSsoEnabled();
+}
 
 /**
  * Bewusst minimale, aber produktionsnah strukturierte Auth:

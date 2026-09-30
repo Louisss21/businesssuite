@@ -24,6 +24,7 @@ import {
 const PUBLIC = [
   "/login",
   "/api/auth/login",
+  "/api/auth/google",
   "/api/health",
   "/api/cron",
   "/api/webhooks",

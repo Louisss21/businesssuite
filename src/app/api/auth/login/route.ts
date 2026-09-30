@@ -1,13 +1,16 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { createSession, verifyPassword } from "@/lib/auth";
+import { createSession, passwordLoginAllowed, verifyPassword } from "@/lib/auth";
 import { AppError, fail, ok } from "@/lib/http";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
 export async function POST(req: NextRequest) {
   try {
+    if (!passwordLoginAllowed()) {
+      throw new AppError("Passwort-Login ist deaktiviert – bitte per Google anmelden.", 403);
+    }
     const { email, password } = schema.parse(await req.json());
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
